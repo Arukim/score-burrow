@@ -95,7 +95,27 @@ dotnet test
 
 ### Deploy Application Code
 
-After infrastructure is deployed:
+#### Option 1: Automated Deployment (Recommended)
+
+After infrastructure is deployed, use the automated deployment script:
+
+```bash
+./deploy-app.sh
+```
+
+This script will automatically:
+- Check prerequisites (Azure CLI, .NET SDK)
+- Verify Azure login and resource group existence
+- Clean previous build artifacts
+- Build and publish the application
+- Create a deployment package
+- Deploy to Azure App Service
+- Display the App Service URL
+- Clean up temporary files
+
+#### Option 2: Manual Deployment
+
+If you prefer manual deployment:
 
 1. Build and publish the application:
    ```bash
@@ -112,11 +132,27 @@ After infrastructure is deployed:
 3. Deploy to Azure App Service:
    ```bash
    az webapp deploy \
-     --resource-group rg-score-burrow-dev \
-     --name score-burrow-app-dev \
+     --resource-group score-burrow-rg \
+     --name <app-service-name> \
      --src-path ../deploy.zip \
      --type zip
    ```
+
+#### Monitoring and Troubleshooting
+
+View live logs:
+```bash
+az webapp log tail \
+  --resource-group score-burrow-rg \
+  --name <app-service-name>
+```
+
+View deployment history:
+```bash
+az webapp deployment list \
+  --resource-group score-burrow-rg \
+  --name <app-service-name>
+```
 
 ## Technology Stack
 

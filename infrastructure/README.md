@@ -53,9 +53,16 @@ The App Service is configured with a **System-Assigned Managed Identity**, which
 
 ## Deployment Steps
 
-### 1. Update Parameters
+### 1. Create Local Parameters (Recommended)
 
-Edit `parameters.json` and set a strong SQL admin password:
+To keep your secrets safe and out of source control, create a local parameters file:
+
+```bash
+cd infrastructure
+cp parameters.json parameters.local.json
+```
+
+Then edit `parameters.local.json` with your actual values:
 
 ```json
 {
@@ -65,7 +72,11 @@ Edit `parameters.json` and set a strong SQL admin password:
 }
 ```
 
-**⚠️ IMPORTANT**: Never commit passwords to source control. Use Azure Key Vault or deployment-time parameters in production.
+**✅ `parameters.local.json` is git-ignored and will NOT be committed**
+
+The deployment script automatically uses `parameters.local.json` if it exists, otherwise it falls back to `parameters.json`.
+
+**Alternative**: Edit `parameters.json` directly, but be careful not to commit sensitive values to source control.
 
 ### 2. Deploy Infrastructure
 

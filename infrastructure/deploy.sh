@@ -6,9 +6,18 @@
 set -e
 
 # Configuration
-RESOURCE_GROUP_NAME="rg-score-burrow-dev"
+RESOURCE_GROUP_NAME="score-burrow-rg"
 LOCATION="australiaeast"
 DEPLOYMENT_NAME="score-burrow-deployment-$(date +%Y%m%d-%H%M%S)"
+
+# Determine which parameters file to use
+if [ -f "parameters.local.json" ]; then
+    PARAMETERS_FILE="parameters.local.json"
+    echo -e "${GREEN}Using local parameters file: parameters.local.json${NC}"
+else
+    PARAMETERS_FILE="parameters.json"
+    echo -e "${YELLOW}Using default parameters file: parameters.json${NC}"
+fi
 
 # Colors for output
 RED='\033[0;31m'
@@ -53,7 +62,7 @@ echo -e "${YELLOW}Validating Bicep template...${NC}"
 az deployment group validate \
     --resource-group $RESOURCE_GROUP_NAME \
     --template-file main.bicep \
-    --parameters parameters.json \
+    --parameters $PARAMETERS_FILE \
     --output none
 
 echo -e "${GREEN}✓ Bicep template validation successful${NC}"
@@ -68,7 +77,7 @@ az deployment group create \
     --resource-group $RESOURCE_GROUP_NAME \
     --name $DEPLOYMENT_NAME \
     --template-file main.bicep \
-    --parameters parameters.json \
+    --parameters $PARAMETERS_FILE \
     --output json > deployment-output.json
 
 echo ""

@@ -78,6 +78,14 @@ module sqlServer 'modules/sqlServer.bicep' = {
   }
 }
 
+// Configure app settings with connection string after both resources are created
+resource appServiceConfig 'Microsoft.Web/sites/config@2022-09-01' = {
+  name: '${appServiceName}/appsettings'
+  properties: {
+    ConnectionStrings__DefaultConnection: sqlServer.outputs.sqlConnectionString
+  }
+}
+
 module cosmosDb 'modules/cosmosDb.bicep' = {
   name: 'cosmosDbDeployment'
   params: {

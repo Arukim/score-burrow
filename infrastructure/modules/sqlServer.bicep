@@ -54,7 +54,6 @@ resource sqlDatabase 'Microsoft.Sql/servers/databases@2022-05-01-preview' = {
     zoneRedundant: false
     autoPauseDelay: 60 // Auto-pause after 60 minutes of inactivity (free tier feature)
     minCapacity: json('0.5') // Minimum vCores when active (free tier)
-    computeModel: 'Serverless'
     licenseType: 'LicenseIncluded'
   }
 }

@@ -13,6 +13,18 @@
     },
     "environment": {
       "value": "dev"
+    },
+    "sqlAdminLogin": {
+      "value": "sqladmin"
+    },
+    "sqlAdminPassword": {
+      "value": "CHANGE_ME_BEFORE_DEPLOY"
+    },
+    "sqlDatabaseName": {
+      "value": "ScoreBurrowDb"
+    },
+    "cosmosDbDatabaseName": {
+      "value": "ScoreBurrowDb"
     }
   }
 }

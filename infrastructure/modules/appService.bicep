@@ -11,6 +11,9 @@ resource appService 'Microsoft.Web/sites@2022-09-01' = {
   name: appServiceName
   location: location
   kind: 'app,linux'
+  identity: {
+    type: 'SystemAssigned'
+  }
   properties: {
     serverFarmId: appServicePlanId
     siteConfig: {
@@ -26,3 +29,6 @@ resource appService 'Microsoft.Web/sites@2022-09-01' = {
 
 output appServiceUrl string = 'https://${appService.properties.defaultHostName}'
 output appServiceId string = appService.id
+output appServicePrincipalId string = appService.identity.principalId
+output appServiceOutboundIpAddresses string = appService.properties.outboundIpAddresses
+output appServicePossibleOutboundIpAddresses string = appService.properties.possibleOutboundIpAddresses

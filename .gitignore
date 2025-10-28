@@ -55,3 +55,4 @@ nunit-*.xml
 
 # Azure Infrastructure - Local parameters
 infrastructure/parameters.local.json
+infrastructure/deployment-output.json

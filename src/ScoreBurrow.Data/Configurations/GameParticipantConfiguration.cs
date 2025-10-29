@@ -13,6 +13,19 @@ public class GameParticipantConfiguration : IEntityTypeConfiguration<GamePartici
         builder.Property(gp => gp.PlayerColor)
             .IsRequired();
 
+        // Rating snapshot at game time
+        builder.Property(gp => gp.RatingAtGameTime)
+            .IsRequired()
+            .HasColumnType("decimal(18,2)");
+
+        builder.Property(gp => gp.RatingDeviationAtGameTime)
+            .IsRequired()
+            .HasColumnType("decimal(18,2)");
+
+        builder.Property(gp => gp.VolatilityAtGameTime)
+            .IsRequired()
+            .HasColumnType("decimal(18,6)");
+
         builder.Property(gp => gp.CreatedBy)
             .IsRequired()
             .HasMaxLength(450);

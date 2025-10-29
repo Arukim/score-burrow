@@ -87,6 +87,8 @@ The CSV file must have the following columns:
 
 This project requires the `GameParticipant.HeroId` field to be nullable, as historical data doesn't include hero information. A migration `MakeHeroIdNullable` is included in the ScoreBurrow.Data project.
 
+**Rating System Integration**: After importing games and calculating ratings, the import process automatically updates each player's `LeagueMembership` record with their most recent Glicko-2 rating values for efficient querying.
+
 ## Date Assignment Logic
 
 - Games are placed on Sundays working backwards from today

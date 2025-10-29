@@ -13,6 +13,7 @@ public class GameImporter
     private readonly DateBacktracker _dateBacktracker;
     private readonly LeagueResolver _leagueResolver;
     private readonly PlayerResolver _playerResolver;
+    private readonly RatingCalculator _ratingCalculator;
 
     public GameImporter(ScoreBurrowDbContext dbContext)
     {
@@ -21,6 +22,7 @@ public class GameImporter
         _dateBacktracker = new DateBacktracker();
         _leagueResolver = new LeagueResolver(dbContext);
         _playerResolver = new PlayerResolver(dbContext);
+        _ratingCalculator = new RatingCalculator();
     }
 
     public async Task<ImportResult> ImportAsync(ImportOptions options)
@@ -79,9 +81,14 @@ public class GameImporter
         // 9. Import games
         Console.WriteLine("Importing games to database...");
         await ImportGamesAsync(gameGroups, league, towns);
-        
+
+        // 10. Update final ratings on LeagueMemberships
+        Console.WriteLine("Updating current ratings on player memberships...");
+        await UpdateFinalRatingsAsync(league.Id);
+
         Console.WriteLine($"\n✓ Successfully imported {result.TotalGames} games with {result.TotalParticipants} participants");
-        
+        Console.WriteLine("✓ Updated current ratings for all players");
+
         return result;
     }
 
@@ -92,8 +99,12 @@ public class GameImporter
     {
         int importedGames = 0;
         int importedParticipants = 0;
+        int ratingHistoryCount = 0;
 
-        foreach (var gameGroup in gameGroups)
+        // Sort games by date to process in chronological order for accurate rating calculation
+        var sortedGameGroups = gameGroups.OrderBy(g => g.GameDate).ToList();
+
+        foreach (var gameGroup in sortedGameGroups)
         {
             // Create Game entity
             var game = new Game
@@ -112,6 +123,7 @@ public class GameImporter
             // Create GameParticipant entities
             var winner = gameGroup.Participants.FirstOrDefault(p => p.Result == 1);
             LeagueMembership? winnerMembership = null;
+            var gameParticipants = new List<GameParticipant>();
 
             foreach (var participant in gameGroup.Participants)
             {
@@ -140,6 +152,7 @@ public class GameImporter
                     GoldTrade = participant.StartMoney
                 };
 
+                gameParticipants.Add(gameParticipant);
                 _dbContext.GameParticipants.Add(gameParticipant);
                 importedParticipants++;
 
@@ -153,6 +166,48 @@ public class GameImporter
             if (winnerMembership != null)
             {
                 game.WinnerId = winnerMembership.Id;
+            }
+
+            // Calculate ratings
+            if (gameGroup.IsTechnicalLoss)
+            {
+                // Technical loss: only penalize the culprit (player with negative result)
+                var culpritCsvParticipant = gameGroup.Participants.FirstOrDefault(p => p.Result < 0);
+                if (culpritCsvParticipant != null)
+                {
+                    var culpritParticipant = gameParticipants.First(gp => 
+                        _playerResolver.GetMembership(culpritCsvParticipant.Player).Id == gp.LeagueMembershipId);
+                    
+                    var culpritUpdate = _ratingCalculator.ApplyTechnicalLossPenalty(culpritParticipant);
+                    
+                    var ratingHistory = _ratingCalculator.CreateRatingHistory(
+                        culpritParticipant.LeagueMembershipId,
+                        game.Id,
+                        culpritUpdate,
+                        game.StartTime);
+                    
+                    _dbContext.RatingHistory.Add(ratingHistory);
+                    ratingHistoryCount++;
+                }
+            }
+            else if (winnerMembership != null)
+            {
+                // Normal game: calculate ratings for all participants
+                var ratingUpdates = _ratingCalculator.CalculateGameRatings(
+                    gameParticipants.ToList(),
+                    winnerMembership.Id);
+
+                foreach (var update in ratingUpdates)
+                {
+                    var ratingHistory = _ratingCalculator.CreateRatingHistory(
+                        update.Key,
+                        game.Id,
+                        update.Value,
+                        game.StartTime);
+                    
+                    _dbContext.RatingHistory.Add(ratingHistory);
+                    ratingHistoryCount++;
+                }
             }
 
             importedGames++;
@@ -230,6 +285,46 @@ public class GameImporter
         Console.WriteLine($"  ⚠ Warning: {result.TotalParticipants} participants will have null Hero");
 
         Console.WriteLine("\n=== This is a DRY RUN - no changes will be made ===");
+    }
+
+    private async Task UpdateFinalRatingsAsync(Guid leagueId)
+    {
+        // Get all memberships for this league
+        var memberships = await _dbContext.LeagueMemberships
+            .Where(lm => lm.LeagueId == leagueId)
+            .ToListAsync();
+
+        int updatedCount = 0;
+
+        foreach (var membership in memberships)
+        {
+            // Find the most recent rating history entry for this member
+            var latestRatingHistory = await _dbContext.RatingHistory
+                .Where(rh => rh.LeagueMembershipId == membership.Id)
+                .OrderByDescending(rh => rh.CalculatedAt)
+                .FirstOrDefaultAsync();
+
+            if (latestRatingHistory != null)
+            {
+                // Update the league membership with the final ratings
+                membership.Glicko2Rating = latestRatingHistory.NewRating;
+                membership.Glicko2RatingDeviation = latestRatingHistory.NewRatingDeviation;
+                membership.Glicko2Volatility = latestRatingHistory.NewVolatility;
+                membership.LastRatingUpdate = latestRatingHistory.CalculatedAt;
+
+                updatedCount++;
+            }
+        }
+
+        if (updatedCount > 0)
+        {
+            await _dbContext.SaveChangesAsync();
+            Console.WriteLine($"Updated current ratings for {updatedCount}/{memberships.Count} players");
+        }
+        else
+        {
+            Console.WriteLine("No rating updates needed (no RatingHistory entries found)");
+        }
     }
 
     private PlayerColor ParsePlayerColor(string color)

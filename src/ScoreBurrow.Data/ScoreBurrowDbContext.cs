@@ -22,6 +22,7 @@ public class ScoreBurrowDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<Town> Towns => Set<Town>();
     public DbSet<Hero> Heroes => Set<Hero>();
     public DbSet<PlayerStatistics> PlayerStatistics => Set<PlayerStatistics>();
+    public DbSet<RatingHistory> RatingHistory => Set<RatingHistory>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -35,6 +36,7 @@ public class ScoreBurrowDbContext : IdentityDbContext<ApplicationUser>
         modelBuilder.ApplyConfiguration(new TownConfiguration());
         modelBuilder.ApplyConfiguration(new HeroConfiguration());
         modelBuilder.ApplyConfiguration(new PlayerStatisticsConfiguration());
+        modelBuilder.ApplyConfiguration(new RatingHistoryConfiguration());
 
         // Seed Towns data
         SeedTowns(modelBuilder);

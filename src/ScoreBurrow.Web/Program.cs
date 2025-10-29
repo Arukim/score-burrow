@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using ScoreBurrow.Data;
 using ScoreBurrow.Data.Entities;
+using ScoreBurrow.Rating.Services;
 using System.Globalization;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -24,6 +25,9 @@ builder.Services.Configure<ForwardedHeadersOptions>(options =>
 // Add services to the container.
 builder.Services.AddRazorPages();
 builder.Services.AddServerSideBlazor();
+
+// Register rating service
+builder.Services.AddScoped<IRatingService, RatingService>();
 
 // Configure DbContext with SQL Server
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") 

@@ -17,6 +17,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\ScoreBurrow.Data\ScoreBurrow.Data.csproj" />
+    <ProjectReference Include="..\ScoreBurrow.Rating\ScoreBurrow.Rating.csproj" />
   </ItemGroup>
 
 </Project>

@@ -15,6 +15,11 @@ public class GameParticipant : IAuditableEntity
     public bool IsTechnicalLoss { get; set; }
     public int GoldTrade { get; set; } // Positive = received, negative = gave away
 
+    // Rating snapshot at game time
+    public double RatingAtGameTime { get; set; } = 1500.0;
+    public double RatingDeviationAtGameTime { get; set; } = 350.0;
+    public double VolatilityAtGameTime { get; set; } = 0.06;
+
     // Audit fields
     public string CreatedBy { get; set; } = string.Empty;
     public DateTime CreatedOn { get; set; }

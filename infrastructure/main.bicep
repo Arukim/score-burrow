@@ -39,13 +39,9 @@ param sqlAdminPassword string
 @description('SQL Database name')
 param sqlDatabaseName string = 'ScoreBurrowDb'
 
-@description('CosmosDB database name')
-param cosmosDbDatabaseName string = 'ScoreBurrowDb'
-
 var appServicePlanName = '${appName}-plan-${environment}'
 var appServiceName = '${appName}-app-${environment}'
 var sqlServerName = '${appName}-sql-${environment}'
-var cosmosDbAccountName = '${appName}-cosmos-${environment}'
 
 module appServicePlan 'modules/appServicePlan.bicep' = {
   name: 'appServicePlanDeployment'
@@ -86,23 +82,9 @@ resource appServiceConfig 'Microsoft.Web/sites/config@2022-09-01' = {
   }
 }
 
-module cosmosDb 'modules/cosmosDb.bicep' = {
-  name: 'cosmosDbDeployment'
-  params: {
-    cosmosDbAccountName: cosmosDbAccountName
-    location: location
-    databaseName: cosmosDbDatabaseName
-    appServicePrincipalId: appService.outputs.appServicePrincipalId
-    appServiceOutboundIps: appService.outputs.appServicePossibleOutboundIpAddresses
-    enableFreeTier: true
-  }
-}
-
 output appServiceUrl string = appService.outputs.appServiceUrl
 output appServiceName string = appServiceName
 output appServicePrincipalId string = appService.outputs.appServicePrincipalId
 output sqlServerFqdn string = sqlServer.outputs.sqlServerFqdn
 output sqlDatabaseName string = sqlServer.outputs.sqlDatabaseName
 output sqlConnectionString string = sqlServer.outputs.sqlConnectionString
-output cosmosDbEndpoint string = cosmosDb.outputs.cosmosDbEndpoint
-output cosmosDbDatabaseName string = cosmosDb.outputs.databaseName

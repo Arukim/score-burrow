@@ -22,9 +22,6 @@
     },
     "sqlDatabaseName": {
       "value": "ScoreBurrowDb"
-    },
-    "cosmosDbDatabaseName": {
-      "value": "ScoreBurrowDb"
     }
   }
 }

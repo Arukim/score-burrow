@@ -1,0 +1,173 @@
+@page "/leagues"
+@page "/leagues/page/{PageNumber:int}"
+
+<PageTitle>Leagues</PageTitle>
+
+@using Microsoft.EntityFrameworkCore
+@using Microsoft.Extensions.Caching.Memory
+@using ScoreBurrow.Data
+@using LeagueEntity = ScoreBurrow.Data.Entities.League
+@inject ScoreBurrowDbContext DbContext
+@inject IMemoryCache MemoryCache
+@inject NavigationManager NavigationManager
+
+<h1>Leagues</h1>
+
+<p>Browse all leagues and their competitions.</p>
+
+@if (leagues == null)
+{
+    <p><em>Loading...</em></p>
+}
+else if (!leagues.Any())
+{
+    <div class="alert alert-info" role="alert">
+        No leagues found.
+    </div>
+}
+else
+{
+    <div class="row">
+        @foreach (var league in leagues)
+        {
+            <div class="col-md-6 mb-3">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <h5 class="card-title">@league.Name</h5>
+                        @if (!string.IsNullOrWhiteSpace(league.Description))
+                        {
+                            <p class="card-text">@league.Description</p>
+                        }
+                        <div class="mb-2">
+                            <small class="text-muted">
+                                <span class="oi oi-people" aria-hidden="true"></span> @league.MemberCount members
+                                <span class="ms-3 oi oi-grid-three-up" aria-hidden="true"></span> @league.GameCount games
+                            </small>
+                        </div>
+                        <div class="mb-2">
+                            <small class="text-muted">
+                                Created: @league.CreatedDate.ToString("MMM dd, yyyy")
+                            </small>
+                        </div>
+                        <a href="@($"/leagues/{league.Id}")" class="btn btn-primary">
+                            View League <span class="oi oi-chevron-right" aria-hidden="true"></span>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+
+    @if (totalPages > 1)
+    {
+        <nav aria-label="League pagination">
+            <ul class="pagination justify-content-center">
+                <li class="page-item @(currentPage == 1 ? "disabled" : "")">
+                    <a class="page-link" href="/leagues/page/@(currentPage - 1)" aria-label="Previous">
+                        <span aria-hidden="true">&laquo;</span>
+                    </a>
+                </li>
+                @for (int i = 1; i <= totalPages; i++)
+                {
+                    var pageNum = i;
+                    <li class="page-item @(currentPage == pageNum ? "active" : "")">
+                        <a class="page-link" href="/leagues/page/@pageNum">@pageNum</a>
+                    </li>
+                }
+                <li class="page-item @(currentPage == totalPages ? "disabled" : "")">
+                    <a class="page-link" href="/leagues/page/@(currentPage + 1)" aria-label="Next">
+                        <span aria-hidden="true">&raquo;</span>
+                    </a>
+                </li>
+            </ul>
+        </nav>
+    }
+}
+
+@code {
+    [Parameter]
+    public int PageNumber { get; set; } = 1;
+
+    private List<LeagueListItem>? leagues;
+    private int currentPage = 1;
+    private int totalPages = 1;
+    private const int PageSize = 50;
+
+    protected override async Task OnInitializedAsync()
+    {
+        currentPage = PageNumber > 0 ? PageNumber : 1;
+        await LoadLeaguesAsync();
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        currentPage = PageNumber > 0 ? PageNumber : 1;
+        await LoadLeaguesAsync();
+    }
+
+    private async Task LoadLeaguesAsync()
+    {
+        var cacheKey = $"leagues_page_{currentPage}";
+
+        if (!MemoryCache.TryGetValue(cacheKey, out List<LeagueListItem>? cachedLeagues))
+        {
+            // Get total count for pagination
+            var totalCount = await DbContext.Leagues
+                .AsNoTracking()
+                .Where(l => l.IsActive)
+                .CountAsync();
+
+            totalPages = (int)Math.Ceiling(totalCount / (double)PageSize);
+
+            // Ensure current page is valid
+            if (currentPage > totalPages && totalPages > 0)
+            {
+                NavigationManager.NavigateTo($"/leagues/page/{totalPages}");
+                return;
+            }
+
+            // Fetch leagues for current page
+            var leaguesData = await DbContext.Leagues
+                .AsNoTracking()
+                .Where(l => l.IsActive)
+                .OrderByDescending(l => l.CreatedDate)
+                .Skip((currentPage - 1) * PageSize)
+                .Take(PageSize)
+                .Select(l => new
+                {
+                    League = l,
+                    MemberCount = DbContext.LeagueMemberships.Count(m => m.LeagueId == l.Id),
+                    GameCount = DbContext.Games.Count(g => g.LeagueId == l.Id)
+                })
+                .ToListAsync();
+
+            cachedLeagues = leaguesData.Select(x => new LeagueListItem
+            {
+                Id = x.League.Id,
+                Name = x.League.Name,
+                Description = x.League.Description,
+                CreatedDate = x.League.CreatedDate,
+                MemberCount = x.MemberCount,
+                GameCount = x.GameCount
+            }).ToList();
+
+            // Cache for 5 minutes with sliding expiration
+            var cacheOptions = new MemoryCacheEntryOptions()
+                .SetSlidingExpiration(TimeSpan.FromMinutes(5));
+
+            MemoryCache.Set(cacheKey, cachedLeagues, cacheOptions);
+        }
+
+        leagues = cachedLeagues;
+    }
+
+    private class LeagueListItem
+    {
+        public Guid Id { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public string? Description { get; set; }
+        public DateTime CreatedDate { get; set; }
+        public int MemberCount { get; set; }
+        public int GameCount { get; set; }
+    }
+}

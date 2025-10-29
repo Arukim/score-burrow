@@ -1,0 +1,344 @@
+@page "/leagues/{LeagueId:guid}/player/{MembershipId:guid}"
+
+<PageTitle>@(membership?.PlayerDisplayName ?? membership?.PlayerNickname ?? "Player") - Profile</PageTitle>
+
+@using Microsoft.EntityFrameworkCore
+@using Microsoft.Extensions.Caching.Memory
+@using ScoreBurrow.Data
+@using ScoreBurrow.Data.Entities
+@using ScoreBurrow.Data.Enums
+@inject ScoreBurrowDbContext DbContext
+@inject IMemoryCache MemoryCache
+@inject NavigationManager NavigationManager
+
+<h1>@(!string.IsNullOrWhiteSpace(membership?.PlayerDisplayName) ? membership?.PlayerDisplayName : membership?.PlayerNickname ?? "Player")</h1>
+
+@if (membership == null)
+{
+    if (isLoading)
+    {
+        <p><em>Loading...</em></p>
+    }
+    else
+    {
+        <div class="alert alert-danger" role="alert">
+            Player not found.
+        </div>
+    }
+}
+else
+{
+    <div class="mb-4">
+        @if (membership.IsRegistered)
+        {
+            <span class="badge bg-success">Registered Player</span>
+        }
+        else
+        {
+            <span class="badge bg-secondary">Unregistered Player</span>
+        }
+        <div class="mt-3">
+            <a href="/leagues/@LeagueId" class="btn btn-outline-secondary">
+                <span class="oi oi-chevron-left" aria-hidden="true"></span> Back to League
+            </a>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5>Player Statistics</h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-2">
+                        <strong>Rating:</strong>
+                        <span class="badge bg-primary">@(membership?.Glicko2Rating.ToString("F0") ?? "0")</span>
+                    </div>
+                    @if (membership.Statistics != null)
+                    {
+                        <div class="mb-2">
+                            <strong>Games Played:</strong> @membership.Statistics.GamesPlayed
+                        </div>
+                        <div class="mb-2">
+                            <strong>Games Won:</strong> @membership.Statistics.GamesWon
+                        </div>
+                        <div class="mb-2">
+                            <strong>Win Rate:</strong> @(membership.Statistics.GamesPlayed > 0 ?
+                                $"{(decimal)membership.Statistics.GamesWon * 100 / membership.Statistics.GamesPlayed:F1}%" :
+                                "N/A")
+                        </div>
+                        <div class="mb-2">
+                            <strong>Average Position:</strong> @membership.Statistics.AveragePosition.ToString("F1")
+                        </div>
+                        @if (membership.Statistics.FavoriteTownId.HasValue)
+                        {
+                            <div class="mb-2">
+                                <strong>Favorite Town:</strong> @membership.Statistics.FavoriteTown?.Name
+                            </div>
+                        }
+                        @if (membership.Statistics.FavoriteHeroId.HasValue)
+                        {
+                            <div class="mb-2">
+                                <strong>Favorite Hero:</strong> @membership.Statistics.FavoriteHero?.Name
+                            </div>
+                        }
+                        <div class="mb-2">
+                            <strong>Data Updated:</strong> @membership.Statistics.LastUpdated.ToString("MMM dd, yyyy HH:mm")
+                        </div>
+                    }
+                    else
+                    {
+                        <em>No statistics available</em>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-8">
+            <h3>Recent Games (@games.Count)</h3>
+            @if (!games.Any())
+            {
+                <div class="alert alert-info">
+                    <em>No games found for this player.</em>
+                </div>
+            }
+            else
+            {
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Map</th>
+                                <th>Position</th>
+                                <th>Town & Hero</th>
+                                <th>Status</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var game in games)
+                            {
+                                var participant = game.Participants.First(p => p.LeagueMembershipId == MembershipId);
+                                <tr>
+                                    <td>@game.StartTime.ToString("MMM dd, yyyy HH:mm")</td>
+                                    <td>@game.MapName</td>
+                                    <td>@participant.Position@(GetOrdinalSuffix(participant.Position))</td>
+                                    <td>
+                                        @participant.Town?.Name (@participant.Hero?.Name)
+                                    </td>
+                                    <td>
+                                        <span class="badge @(GetStatusBadgeClass(game.Status))">
+                                            @GetStatusDisplayName(game.Status)
+                                        </span>
+                                        @if (participant.IsWinner)
+                                        {
+                                            <span class="badge bg-success ms-1">Winner</span>
+                                        }
+                                    </td>
+                                    <td>
+                                        <a href="/leagues/@LeagueId/game/@game.Id" class="btn btn-sm btn-outline-primary">
+                                            View <span class="oi oi-eye" aria-hidden="true"></span>
+                                        </a>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+
+                @if (gamePages > 1)
+                {
+                    <nav aria-label="Games pagination">
+                        <ul class="pagination justify-content-center">
+                            <li class="page-item @(currentGamePage == 1 ? "disabled" : "")">
+                                <a class="page-link" href="/leagues/@LeagueId/player/@MembershipId?gamePage=@(currentGamePage - 1)" aria-label="Previous">
+                                    <span aria-hidden="true">&laquo;</span>
+                                </a>
+                            </li>
+                            @{
+                                int startPage = Math.Max(1, currentGamePage - 2);
+                                int endPage = Math.Min(gamePages, currentGamePage + 2);
+                            }
+                            @for (int i = startPage; i <= endPage; i++)
+                            {
+                                var pageNum = i;
+                                <li class="page-item @(currentGamePage == pageNum ? "active" : "")">
+                                    <a class="page-link" href="/leagues/@LeagueId/player/@MembershipId?gamePage=@pageNum">@pageNum</a>
+                                </li>
+                            }
+                            <li class="page-item @(currentGamePage == gamePages ? "disabled" : "")">
+                                <a class="page-link" href="/leagues/@LeagueId/player/@MembershipId?gamePage=@(currentGamePage + 1)" aria-label="Next">
+                                    <span aria-hidden="true">&raquo;</span>
+                                </a>
+                            </li>
+                        </ul>
+                    </nav>
+                }
+            }
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter]
+    public Guid LeagueId { get; set; }
+
+    [Parameter]
+    public Guid MembershipId { get; set; }
+
+    [Parameter]
+    [SupplyParameterFromQuery]
+    public int GamePage { get; set; } = 1;
+
+    private LeagueMembership? membership;
+    private List<GameView>? games;
+    private bool isLoading = true;
+    private int currentGamePage = 1;
+    private int gamePages = 1;
+    private const int GamesPerPage = 20;
+
+    protected override async Task OnInitializedAsync()
+    {
+        currentGamePage = GamePage > 0 ? GamePage : 1;
+        await LoadDataAsync();
+        isLoading = false;
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        currentGamePage = GamePage > 0 ? GamePage : 1;
+        await LoadDataAsync();
+    }
+
+    private async Task LoadDataAsync()
+    {
+        var cacheKey = $"player_{MembershipId}_league_{LeagueId}";
+
+        if (!MemoryCache.TryGetValue(cacheKey, out PlayerData? cachedData))
+        {
+            // Get membership with statistics and navigation properties
+            membership = await DbContext.LeagueMemberships
+                .AsNoTracking()
+                .Include(m => m.League)
+                .Include(m => m.Statistics)
+                .ThenInclude(s => s!.FavoriteTown)
+                .Include(m => m.Statistics)
+                .ThenInclude(s => s!.FavoriteHero)
+                .FirstOrDefaultAsync(m => m.Id == MembershipId && m.LeagueId == LeagueId);
+
+            if (membership == null)
+                return;
+
+            // Get total games count for this player
+            var totalGames = await DbContext.GameParticipants
+                .AsNoTracking()
+                .Where(gp => gp.LeagueMembershipId == MembershipId && gp.Game.LeagueId == LeagueId)
+                .CountAsync();
+
+            gamePages = (int)Math.Ceiling(totalGames / (double)GamesPerPage);
+
+            if (currentGamePage > gamePages && gamePages > 0)
+            {
+                NavigationManager.NavigateTo($"/leagues/{LeagueId}/player/{MembershipId}?gamePage={gamePages}");
+                return;
+            }
+
+            // Get games for current page
+            var gameIds = await DbContext.GameParticipants
+                .AsNoTracking()
+                .Where(gp => gp.LeagueMembershipId == MembershipId && gp.Game.LeagueId == LeagueId)
+                .OrderByDescending(gp => gp.Game.StartTime)
+                .Skip((currentGamePage - 1) * GamesPerPage)
+                .Take(GamesPerPage)
+                .Select(gp => gp.GameId)
+                .ToListAsync();
+
+            var gamesData = await DbContext.Games
+                .AsNoTracking()
+                .Include(g => g.Participants)
+                .ThenInclude(p => p.Town)
+                .Include(g => g.Participants)
+                .ThenInclude(p => p.Hero)
+                .Where(g => gameIds.Contains(g.Id))
+                .OrderByDescending(g => g.StartTime)
+                .ToListAsync();
+
+            games = gamesData.Select(g => new GameView
+            {
+                Id = g.Id,
+                StartTime = g.StartTime,
+                MapName = g.MapName,
+                Status = g.Status,
+                Participants = g.Participants ?? new List<GameParticipant>(),
+                Winner = g.Winner
+            }).ToList();
+
+            cachedData = new PlayerData { Membership = membership, Games = games };
+
+            var cacheOptions = new MemoryCacheEntryOptions()
+                .SetSlidingExpiration(TimeSpan.FromMinutes(10));
+
+            MemoryCache.Set(cacheKey, cachedData, cacheOptions);
+        }
+        else
+        {
+            membership = cachedData.Membership;
+            games = cachedData.Games;
+        }
+    }
+
+    private string GetStatusBadgeClass(GameStatus status)
+    {
+        return status switch
+        {
+            GameStatus.Completed => "bg-success",
+            GameStatus.InProgress => "bg-primary",
+            GameStatus.Cancelled => "bg-secondary",
+            _ => "bg-secondary"
+        };
+    }
+
+    private string GetStatusDisplayName(GameStatus status)
+    {
+        return status switch
+        {
+            GameStatus.Completed => "Completed",
+            GameStatus.InProgress => "In Progress",
+            GameStatus.Cancelled => "Cancelled",
+            _ => "Unknown"
+        };
+    }
+
+    private string GetOrdinalSuffix(int number)
+    {
+        if (number <= 0) return number.ToString();
+
+        if (number % 100 is >= 11 and <= 13) return "th";
+
+        return (number % 10) switch
+        {
+            1 => "st",
+            2 => "nd",
+            3 => "rd",
+            _ => "th"
+        };
+    }
+
+    private class PlayerData
+    {
+        public LeagueMembership? Membership { get; set; }
+        public List<GameView>? Games { get; set; }
+    }
+
+    private class GameView
+    {
+        public Guid Id { get; set; }
+        public DateTime StartTime { get; set; }
+        public string MapName { get; set; } = string.Empty;
+        public GameStatus Status { get; set; }
+        public ICollection<GameParticipant> Participants { get; set; } = new List<GameParticipant>();
+        public LeagueMembership? Winner { get; set; }
+    }
+}

@@ -258,6 +258,51 @@ public class ScoreBurrowDbContext : IdentityDbContext<ApplicationUser>
             new Hero { Id = 142, Name = "Aenain", TownId = 9, HeroClass = "Elementalist" },
             new Hero { Id = 143, Name = "Gelare", TownId = 9, HeroClass = "Elementalist" },
             new Hero { Id = 144, Name = "Grindan", TownId = 9, HeroClass = "Elementalist" },
+            // HotA Heroes
+
+            // Cove Captain Heroes
+            new Hero { Id = 145, Name = "Corkes", TownId = 10, HeroClass = "Captain" },
+            new Hero { Id = 146, Name = "Jeremy", TownId = 10, HeroClass = "Captain" },
+            new Hero { Id = 147, Name = "Illor", TownId = 10, HeroClass = "Captain" },
+            new Hero { Id = 148, Name = "Derek", TownId = 10, HeroClass = "Captain" },
+            new Hero { Id = 149, Name = "Elmore", TownId = 10, HeroClass = "Captain" },
+            new Hero { Id = 150, Name = "Leena", TownId = 10, HeroClass = "Captain" },
+            new Hero { Id = 151, Name = "Anabel", TownId = 10, HeroClass = "Captain" },
+            new Hero { Id = 152, Name = "Cassiopeia", TownId = 10, HeroClass = "Captain" },
+            new Hero { Id = 153, Name = "Miriam", TownId = 10, HeroClass = "Captain" },
+            new Hero { Id = 154, Name = "Tark", TownId = 10, HeroClass = "Captain" },
+
+            // Cove Navigator Heroes
+            new Hero { Id = 155, Name = "Manfred", TownId = 10, HeroClass = "Navigator" },
+            new Hero { Id = 156, Name = "Zilare", TownId = 10, HeroClass = "Navigator" },
+            new Hero { Id = 157, Name = "Astra", TownId = 10, HeroClass = "Navigator" },
+            new Hero { Id = 158, Name = "Casmetra", TownId = 10, HeroClass = "Navigator" },
+            new Hero { Id = 159, Name = "Dargem", TownId = 10, HeroClass = "Navigator" },
+            new Hero { Id = 160, Name = "Andal", TownId = 10, HeroClass = "Navigator" },
+            new Hero { Id = 161, Name = "Eovacius", TownId = 10, HeroClass = "Navigator" },
+            new Hero { Id = 162, Name = "Spint", TownId = 10, HeroClass = "Navigator" },
+
+            // Factory Mercenary Heroes
+            new Hero { Id = 163, Name = "Henrietta", TownId = 11, HeroClass = "Mercenary" },
+            new Hero { Id = 164, Name = "Sam", TownId = 11, HeroClass = "Mercenary" },
+            new Hero { Id = 165, Name = "Tancred", TownId = 11, HeroClass = "Mercenary" },
+            new Hero { Id = 166, Name = "Dury", TownId = 11, HeroClass = "Mercenary" },
+            new Hero { Id = 167, Name = "Morton", TownId = 11, HeroClass = "Mercenary" },
+            new Hero { Id = 168, Name = "Tavin", TownId = 11, HeroClass = "Mercenary" },
+            new Hero { Id = 169, Name = "Murdoch", TownId = 11, HeroClass = "Mercenary" },
+
+            // Factory Artificer Heroes
+            new Hero { Id = 170, Name = "Melchior", TownId = 11, HeroClass = "Artificer" },
+            new Hero { Id = 171, Name = "Floribert", TownId = 11, HeroClass = "Artificer" },
+            new Hero { Id = 172, Name = "Wynona", TownId = 11, HeroClass = "Artificer" },
+            new Hero { Id = 173, Name = "Todd", TownId = 11, HeroClass = "Artificer" },
+            new Hero { Id = 174, Name = "Agar", TownId = 11, HeroClass = "Artificer" },
+            new Hero { Id = 175, Name = "Bertram", TownId = 11, HeroClass = "Artificer" },
+            new Hero { Id = 176, Name = "Wrathmont", TownId = 11, HeroClass = "Artificer" },
+            new Hero { Id = 177, Name = "Ziph", TownId = 11, HeroClass = "Artificer" },
+            new Hero { Id = 178, Name = "Victoria", TownId = 11, HeroClass = "Artificer" },
+            new Hero { Id = 179, Name = "Eanswythe", TownId = 11, HeroClass = "Artificer" },
+            new Hero { Id = 180, Name = "Frederick", TownId = 11, HeroClass = "Artificer" },
         };
 
         modelBuilder.Entity<Hero>().HasData(heroes);

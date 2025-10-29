@@ -4,7 +4,6 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using ScoreBurrow.Data;
 using ScoreBurrow.Data.Entities;
-using ScoreBurrow.Web.Data;
 using System.Globalization;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -25,7 +24,6 @@ builder.Services.Configure<ForwardedHeadersOptions>(options =>
 // Add services to the container.
 builder.Services.AddRazorPages();
 builder.Services.AddServerSideBlazor();
-builder.Services.AddSingleton<WeatherForecastService>();
 
 // Configure DbContext with SQL Server
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") 

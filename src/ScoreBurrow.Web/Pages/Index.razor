@@ -2,40 +2,158 @@
 
 <PageTitle>Score Burrow - Game Score Calculator</PageTitle>
 
-<h1>Hello, World!</h1>
+@using Microsoft.EntityFrameworkCore
+@using Microsoft.Extensions.Caching.Memory
+@using ScoreBurrow.Data
+@using LeagueEntity = ScoreBurrow.Data.Entities.League
+@inject ScoreBurrowDbContext DbContext
+@inject IMemoryCache MemoryCache
 
-<p class="lead">Welcome to <strong>Score Burrow</strong> - Your Game Score Calculator</p>
+<h1>Leagues</h1>
 
-<div class="alert alert-info" role="alert">
-    <h4 class="alert-heading">Getting Started</h4>
-    <p>This is a starter Blazor Server application for calculating and tracking game scores.</p>
-    <hr>
-    <p class="mb-0">Use the navigation menu to explore different features. Start building your score tracking logic!</p>
-</div>
+<p>Browse leagues with recent activity.</p>
 
-<div class="row mt-4">
-    <div class="col-md-4">
-        <div class="card">
-            <div class="card-body">
-                <h5 class="card-title">🎮 Track Scores</h5>
-                <p class="card-text">Keep track of game scores for multiple players and games.</p>
+@if (leagues == null)
+{
+    <p><em>Loading...</em></p>
+}
+else if (!leagues.Any())
+{
+    <div class="alert alert-info" role="alert">
+        No leagues found.
+    </div>
+}
+else
+{
+    <div class="row">
+        @foreach (var league in leagues)
+        {
+            <div class="col-md-6 mb-3">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <h5 class="card-title">@league.Name</h5>
+                        @if (!string.IsNullOrWhiteSpace(league.Description))
+                        {
+                            <p class="card-text">@league.Description</p>
+                        }
+                        <div class="mb-2">
+                            <small class="text-muted">
+                                <span class="oi oi-people" aria-hidden="true"></span> @league.MemberCount members
+                                <span class="ms-3 oi oi-grid-three-up" aria-hidden="true"></span> @league.GameCount games
+                            </small>
+                        </div>
+                        @if (league.MostRecentGameDate.HasValue)
+                        {
+                            <div class="mb-2">
+                                <small class="text-muted">
+                                    Last game: @league.MostRecentGameDate.Value.ToString("MMM dd, yyyy")
+                                </small>
+                            </div>
+                        }
+                        <div class="mb-2">
+                            <small class="text-muted">
+                                Created: @league.CreatedDate.ToString("MMM dd, yyyy")
+                            </small>
+                        </div>
+                        <a href="@($"/leagues/{league.Id}")" class="btn btn-primary">
+                            View League <span class="oi oi-chevron-right" aria-hidden="true"></span>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+
+    <div class="row mt-4">
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">🎮 Track Scores</h5>
+                    <p class="card-text">Keep track of game scores for multiple players and games.</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">📊 Calculate Results</h5>
+                    <p class="card-text">Automatically calculate winners, rankings, and statistics.</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">🏆 View History</h5>
+                    <p class="card-text">Review past games and track performance over time.</p>
+                </div>
             </div>
         </div>
     </div>
-    <div class="col-md-4">
-        <div class="card">
-            <div class="card-body">
-                <h5 class="card-title">📊 Calculate Results</h5>
-                <p class="card-text">Automatically calculate winners, rankings, and statistics.</p>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-4">
-        <div class="card">
-            <div class="card-body">
-                <h5 class="card-title">🏆 View History</h5>
-                <p class="card-text">Review past games and track performance over time.</p>
-            </div>
-        </div>
-    </div>
-</div>
+}
+
+@code {
+    private List<LeagueListItem>? leagues;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadLeaguesAsync();
+    }
+
+    private async Task LoadLeaguesAsync()
+    {
+        var cacheKey = "home_leagues_top10";
+
+        if (!MemoryCache.TryGetValue(cacheKey, out List<LeagueListItem>? cachedLeagues))
+        {
+            // Fetch top 10 leagues ordered by most recent game
+            var leaguesData = await DbContext.Leagues
+                .AsNoTracking()
+                .Where(l => l.IsActive)
+                .Select(l => new
+                {
+                    League = l,
+                    MemberCount = DbContext.LeagueMemberships.Count(m => m.LeagueId == l.Id),
+                    GameCount = DbContext.Games.Count(g => g.LeagueId == l.Id),
+                    MostRecentGameDate = DbContext.Games
+                        .Where(g => g.LeagueId == l.Id)
+                        .OrderByDescending(g => g.StartTime)
+                        .Select(g => (DateTime?)g.StartTime)
+                        .FirstOrDefault()
+                })
+                .OrderByDescending(x => x.MostRecentGameDate)
+                .Take(10)
+                .ToListAsync();
+
+            cachedLeagues = leaguesData.Select(x => new LeagueListItem
+            {
+                Id = x.League.Id,
+                Name = x.League.Name,
+                Description = x.League.Description,
+                CreatedDate = x.League.CreatedDate,
+                MemberCount = x.MemberCount,
+                GameCount = x.GameCount,
+                MostRecentGameDate = x.MostRecentGameDate
+            }).ToList();
+
+            // Cache for 5 minutes with sliding expiration
+            var cacheOptions = new MemoryCacheEntryOptions()
+                .SetSlidingExpiration(TimeSpan.FromMinutes(5));
+
+            MemoryCache.Set(cacheKey, cachedLeagues, cacheOptions);
+        }
+
+        leagues = cachedLeagues;
+    }
+
+    private class LeagueListItem
+    {
+        public Guid Id { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public string? Description { get; set; }
+        public DateTime CreatedDate { get; set; }
+        public int MemberCount { get; set; }
+        public int GameCount { get; set; }
+        public DateTime? MostRecentGameDate { get; set; }
+    }
+}

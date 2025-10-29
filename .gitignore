@@ -60,3 +60,5 @@ infrastructure/deployment-output.json
 # local development settings
 src/ScoreBurrow.Web/appsettings.Development.json
 
+# deployment package
+scoreborrow-web.zip

@@ -1,0 +1,62 @@
+@page "/knowledgebase/towns"
+
+<PageTitle>Towns - Knowledge Base</PageTitle>
+
+@using Microsoft.EntityFrameworkCore
+@using Microsoft.Extensions.Caching.Memory
+@using ScoreBurrow.Data
+@using TownEntity = ScoreBurrow.Data.Entities.Town
+@inject ScoreBurrowDbContext DbContext
+@inject IMemoryCache MemoryCache
+
+<h1>Towns</h1>
+
+<p>Welcome to the Knowledge Base. Here you can explore the different towns available in Heroes of Might and Magic 3.</p>
+
+@if (towns == null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <div class="row">
+        @foreach (var town in towns.OrderBy(t => t.Id))
+        {
+            <div class="col-md-4 mb-3">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <h5 class="card-title">@town.Name</h5>
+                        <p class="card-text">@town.Description</p>
+                        <a href="@($"knowledgebase/town/{town.Id}")" class="btn btn-primary">
+                            View Heroes <span class="oi oi-chevron-right" aria-hidden="true"></span>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    private List<TownEntity>? towns;
+
+    protected override async Task OnInitializedAsync()
+    {
+        const string cacheKey = "towns_list";
+        if (!MemoryCache.TryGetValue(cacheKey, out List<TownEntity>? cachedTowns))
+        {
+            // Cache miss - fetch from database
+            cachedTowns = await DbContext.Towns
+                .AsNoTracking()
+                .ToListAsync();
+
+            // Cache for 1 hour with sliding expiration
+            var cacheOptions = new MemoryCacheEntryOptions()
+                .SetSlidingExpiration(TimeSpan.FromHours(1));
+
+            MemoryCache.Set(cacheKey, cachedTowns, cacheOptions);
+        }
+
+        towns = cachedTowns;
+    }
+}

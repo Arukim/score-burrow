@@ -1,0 +1,108 @@
+@page "/knowledgebase/town/{TownId:int}"
+
+<PageTitle>@(town?.Name ?? "Town") - Knowledge Base</PageTitle>
+
+@using Microsoft.EntityFrameworkCore
+@using Microsoft.Extensions.Caching.Memory
+@using ScoreBurrow.Data
+@using TownEntity = ScoreBurrow.Data.Entities.Town
+@using HeroEntity = ScoreBurrow.Data.Entities.Hero
+@inject ScoreBurrowDbContext DbContext
+@inject IMemoryCache MemoryCache
+
+<h1>@(town?.Name ?? "Town")</h1>
+
+@if (town == null)
+{
+    if (isLoading)
+    {
+        <p><em>Loading...</em></p>
+    }
+    else
+    {
+        <div class="alert alert-danger" role="alert">
+            Town not found.
+        </div>
+    }
+}
+else
+{
+    <div class="mb-4">
+        <p class="lead">@town.Description</p>
+    </div>
+
+    <div class="mb-3">
+        <a href="/knowledgebase/towns" class="btn btn-outline-secondary">
+            <span class="oi oi-chevron-left" aria-hidden="true"></span> Back to Towns
+        </a>
+    </div>
+
+    <h2>Available Heroes</h2>
+
+    @if (heroes?.Any() != true)
+    {
+        <p>No heroes found for this town.</p>
+    }
+    else
+    {
+        <div class="table-responsive">
+            <table class="table table-striped">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Class</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var hero in heroes.OrderBy(h => h.HeroClass).ThenBy(h => h.Name))
+                    {
+                        <tr>
+                            <td>@hero.Name</td>
+                            <td><span class="badge bg-secondary">@hero.HeroClass</span></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+}
+
+@code {
+    [Parameter]
+    public int TownId { get; set; }
+
+    private TownEntity? town;
+    private List<HeroEntity>? heroes;
+    private bool isLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadTownAsync();
+        isLoading = false;
+    }
+
+    private async Task LoadTownAsync()
+    {
+        var cacheKey = $"town_{TownId}";
+        if (!MemoryCache.TryGetValue(cacheKey, out TownEntity? cachedTown))
+        {
+            // Cache miss - fetch from database with related heroes
+            cachedTown = await DbContext.Towns
+                .AsNoTracking()
+                .Include(t => t.Heroes)
+                .FirstOrDefaultAsync(t => t.Id == TownId);
+
+            if (cachedTown != null)
+            {
+                // Cache for 1 hour with sliding expiration
+                var cacheOptions = new MemoryCacheEntryOptions()
+                    .SetSlidingExpiration(TimeSpan.FromHours(1));
+
+                MemoryCache.Set(cacheKey, cachedTown, cacheOptions);
+            }
+        }
+
+        town = cachedTown;
+        heroes = town?.Heroes?.ToList();
+    }
+}

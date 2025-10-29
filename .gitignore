@@ -56,3 +56,7 @@ nunit-*.xml
 # Azure Infrastructure - Local parameters
 infrastructure/parameters.local.json
 infrastructure/deployment-output.json
+
+# local development settings
+src/ScoreBurrow.Web/appsettings.Development.json
+

@@ -58,7 +58,10 @@ infrastructure/parameters.local.json
 infrastructure/deployment-output.json
 
 # local development settings
-src/ScoreBurrow.Web/appsettings.Development.json
+appsettings.Development.json
 
 # deployment package
 scoreborrow-web.zip
+
+# Source Raw data
+Heroes - Raw Data.csv

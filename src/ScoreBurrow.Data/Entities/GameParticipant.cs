@@ -8,7 +8,7 @@ public class GameParticipant : IAuditableEntity
     public Guid GameId { get; set; }
     public Guid LeagueMembershipId { get; set; }
     public int TownId { get; set; }
-    public int HeroId { get; set; }
+    public int? HeroId { get; set; }
     public PlayerColor PlayerColor { get; set; }
     public int Position { get; set; }
     public bool IsWinner { get; set; }

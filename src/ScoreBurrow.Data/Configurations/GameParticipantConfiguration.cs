@@ -42,6 +42,7 @@ public class GameParticipantConfiguration : IEntityTypeConfiguration<GamePartici
         builder.HasOne(gp => gp.Hero)
             .WithMany(h => h.GameParticipants)
             .HasForeignKey(gp => gp.HeroId)
-            .OnDelete(DeleteBehavior.Restrict);
+            .OnDelete(DeleteBehavior.Restrict)
+            .IsRequired(false);
     }
 }

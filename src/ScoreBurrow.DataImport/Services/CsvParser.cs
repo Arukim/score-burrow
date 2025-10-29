@@ -139,8 +139,9 @@ public class CsvParser
             }
 
             // Check that sum of Start money equals 0 (warning only, not an error)
+            // Allow +1/-1 balance as that's normal rounding for 3-player games
             var totalMoney = game.Participants.Sum(p => p.StartMoney);
-            if (totalMoney != 0)
+            if (totalMoney != 0 && Math.Abs(totalMoney) > 1)
             {
                 var participantDetails = string.Join(", ", game.Participants.Select(p => $"Row {p.RowNumber}: {p.Player}({p.StartMoney})"));
                 Console.WriteLine($"Warning: Game on map {game.MapName} (rows {rows}) has unbalanced gold trade (sum: {totalMoney}). Participants: {participantDetails}");

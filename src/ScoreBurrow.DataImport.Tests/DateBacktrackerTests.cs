@@ -1,4 +1,5 @@
 using FluentAssertions;
+using ScoreBurrow.DataImport.Models;
 using ScoreBurrow.DataImport.Services;
 
 namespace ScoreBurrow.DataImport.Tests;
@@ -93,5 +94,81 @@ public class DateBacktrackerTests
         // Assert
         result.DayOfWeek.Should().Be(DayOfWeek.Sunday);
         result.Should().Be(new DateTime(2025, 12, 28)); // Previous Sunday in 2025
+    }
+
+    [Fact]
+    public void AssignGameDates_MaintainsCsvOrder_LatestGameGetsRecentDate()
+    {
+        // Arrange
+        var backtracker = new DateBacktracker();
+        var gameGroups = new List<GameGroup>
+        {
+            // Game 1 (oldest - should get oldest Sunday)
+            new GameGroup
+            {
+                MapName = "Map1",
+                Participants = new List<CsvGameRecord>
+                {
+                    new CsvGameRecord { Player = "Player1", City = "Castle", Color = "Red", Result = 1 },
+                    new CsvGameRecord { Player = "Player2", City = "Tower", Color = "Blue", Result = 0 }
+                }
+            },
+            // Game 2 - uses Castle again to force different Sunday
+            new GameGroup
+            {
+                MapName = "Map2",
+                Participants = new List<CsvGameRecord>
+                {
+                    new CsvGameRecord { Player = "Player3", City = "Castle", Color = "Red", Result = 1 },
+                    new CsvGameRecord { Player = "Player4", City = "Inferno", Color = "Blue", Result = 0 }
+                }
+            },
+            // Game 3 - uses Castle again to force different Sunday
+            new GameGroup
+            {
+                MapName = "Map3",
+                Participants = new List<CsvGameRecord>
+                {
+                    new CsvGameRecord { Player = "Player5", City = "Castle", Color = "Red", Result = 1 },
+                    new CsvGameRecord { Player = "Player6", City = "Rampart", Color = "Blue", Result = 0 }
+                }
+            },
+            // Game 4 (newest - should get most recent Sunday)
+            new GameGroup
+            {
+                MapName = "Map4",
+                Participants = new List<CsvGameRecord>
+                {
+                    new CsvGameRecord { Player = "Player7", City = "Castle", Color = "Red", Result = 1 },
+                    new CsvGameRecord { Player = "Player8", City = "Fortress", Color = "Blue", Result = 0 }
+                }
+            }
+        };
+
+        // Act
+        backtracker.AssignGameDates(gameGroups);
+
+        // Assert
+        var firstGame = gameGroups[0]; // Oldest game in CSV
+        var lastGame = gameGroups[3];  // Latest game in CSV
+
+        // The latest game in CSV should have a more recent date than the first
+        lastGame.GameDate.Should().BeAfter(firstGame.GameDate, 
+            "latest game in CSV should get a more recent date than the oldest");
+        
+        // Games should be in chronological order matching CSV order
+        for (int i = 1; i < gameGroups.Count; i++)
+        {
+            gameGroups[i].GameDate.Should().BeOnOrAfter(gameGroups[i-1].GameDate,
+                $"game {i} should have a date on or after game {i-1} to maintain CSV chronological order");
+        }
+        
+        // All games should have dates assigned
+        gameGroups.Should().AllSatisfy(g => 
+            g.GameDate.Should().NotBe(DateTime.MinValue, "all games should have dates assigned"));
+
+        // All dates should be on Sundays
+        gameGroups.Should().AllSatisfy(g => 
+            g.GameDate.DayOfWeek.Should().Be(DayOfWeek.Sunday, "all games should be on Sundays"));
     }
 }

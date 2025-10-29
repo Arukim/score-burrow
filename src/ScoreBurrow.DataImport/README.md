@@ -90,10 +90,10 @@ This project requires the `GameParticipant.HeroId` field to be nullable, as hist
 ## Date Assignment Logic
 
 - Games are placed on Sundays working backwards from today
-- 1-3 non-technical-loss games per Sunday (random distribution)
+- 1-2 non-technical-loss games per Sunday (random distribution)
 - Same town cannot be played twice on the same Sunday
-- Technical loss games inherit dates from nearby non-technical games
-- Times assigned: 1:00 PM, 2:00 PM, 3:00 PM
+- Technical loss games inherit dates from nearby non-technical games (can occur on same dates as normal games)
+- Times assigned: 1:00 PM, 2:00 PM
 
 ## Command-Line Options
 

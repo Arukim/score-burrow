@@ -24,6 +24,9 @@ public class DateBacktracker
         // Filter non-technical loss games for distribution
         var nonTechGames = gameGroups.Where(g => !g.IsTechnicalLoss).ToList();
         
+        // Reverse so latest games in CSV get most recent dates
+        nonTechGames.Reverse();
+        
         // Distribute games across Sundays
         var sundayGames = DistributeGamesAcrossSundays(nonTechGames, startDate);
         
@@ -41,8 +44,8 @@ public class DateBacktracker
 
         while (remainingGames.Any())
         {
-            // Randomly select 1-3 games for this Sunday
-            var gamesThisSunday = _random.Next(1, Math.Min(4, remainingGames.Count + 1));
+            // Randomly select 1-2 games for this Sunday (max 2 games per playday)
+            var gamesThisSunday = _random.Next(1, Math.Min(3, remainingGames.Count + 1));
             var sundayGameList = new List<GameGroup>();
             var townsUsed = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
@@ -69,7 +72,7 @@ public class DateBacktracker
                 }
             }
 
-            // Assign times (1:00 PM, 2:00 PM, 3:00 PM)
+            // Assign times (1:00 PM, 2:00 PM)
             for (int i = 0; i < sundayGameList.Count; i++)
             {
                 sundayGameList[i].GameDate = currentSunday.AddHours(13 + i);

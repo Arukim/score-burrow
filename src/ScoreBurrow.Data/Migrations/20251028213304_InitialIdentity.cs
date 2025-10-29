@@ -3,7 +3,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
-namespace ScoreBurrow.Web.Migrations
+namespace ScoreBurrow.Data.Migrations
 {
     /// <inheritdoc />
     public partial class InitialIdentity : Migration

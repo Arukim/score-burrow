@@ -1,7 +1,7 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
-using ScoreBurrow.Web.Models;
+using ScoreBurrow.Data.Entities;
 using System.ComponentModel.DataAnnotations;
 
 namespace ScoreBurrow.Web.Pages.Account

@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.Identity;
 
-namespace ScoreBurrow.Web.Models;
+namespace ScoreBurrow.Data.Entities;
 
 public class ApplicationUser : IdentityUser
 {

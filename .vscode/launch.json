@@ -10,7 +10,7 @@
             "request": "launch",
             "preLaunchTask": "build",
             // If you have changed target frameworks, make sure to update the program path.
-            "program": "${workspaceFolder}/src/ScoreBurrow.Web/bin/Debug/net6.0/ScoreBurrow.Web.dll",
+            "program": "${workspaceFolder}/src/ScoreBurrow.Web/bin/Debug/net8.0/ScoreBurrow.Web.dll",
             "args": [],
             "cwd": "${workspaceFolder}/src/ScoreBurrow.Web",
             "stopAtEntry": false,

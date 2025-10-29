@@ -5,13 +5,13 @@ using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
-using ScoreBurrow.Web.Data;
+using ScoreBurrow.Data;
 
 #nullable disable
 
-namespace ScoreBurrow.Web.Migrations
+namespace ScoreBurrow.Data.Migrations
 {
-    [DbContext(typeof(ApplicationDbContext))]
+    [DbContext(typeof(ScoreBurrowDbContext))]
     [Migration("20251028213304_InitialIdentity")]
     partial class InitialIdentity
     {

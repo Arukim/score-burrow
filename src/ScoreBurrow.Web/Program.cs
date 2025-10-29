@@ -2,8 +2,9 @@ using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using ScoreBurrow.Data;
+using ScoreBurrow.Data.Entities;
 using ScoreBurrow.Web.Data;
-using ScoreBurrow.Web.Models;
 using System.Globalization;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -29,7 +30,7 @@ builder.Services.AddSingleton<WeatherForecastService>();
 // Configure DbContext with SQL Server
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") 
     ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
-builder.Services.AddDbContext<ApplicationDbContext>(options =>
+builder.Services.AddDbContext<ScoreBurrowDbContext>(options =>
     options.UseSqlServer(connectionString));
 
 // Add Identity services
@@ -42,7 +43,7 @@ builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options => {
     options.Password.RequireNonAlphanumeric = false;
     options.Password.RequiredLength = 6;
 })
-.AddEntityFrameworkStores<ApplicationDbContext>()
+.AddEntityFrameworkStores<ScoreBurrowDbContext>()
 .AddDefaultTokenProviders();
 
 // Configure authentication cookie
@@ -66,7 +67,7 @@ using (var scope = app.Services.CreateScope())
     var services = scope.ServiceProvider;
     try
     {
-        var context = services.GetRequiredService<ApplicationDbContext>();
+        var context = services.GetRequiredService<ScoreBurrowDbContext>();
         context.Database.Migrate();
     }
     catch (Exception ex)

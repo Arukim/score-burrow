@@ -1,7 +1,7 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
-using ScoreBurrow.Web.Models;
+using ScoreBurrow.Data.Entities;
 using System.ComponentModel.DataAnnotations;
 
 namespace ScoreBurrow.Web.Pages.Account
@@ -51,11 +51,11 @@ namespace ScoreBurrow.Web.Pages.Account
             
             _logger.LogInformation("ReturnUrl: {ReturnUrl}", returnUrl);
 
-            if (ModelState.IsValid)
+            if (ModelState.IsValid && Input != null)
             {
-                _logger.LogInformation("ModelState is valid, attempting sign in for {Email}", Input.Email);
+                _logger.LogInformation("ModelState is valid, attempting sign in for {Email}", Input.Email!);
                 
-                var result = await _signInManager.PasswordSignInAsync(Input.Email, Input.Password, Input.RememberMe, lockoutOnFailure: false);
+                var result = await _signInManager.PasswordSignInAsync(Input.Email!, Input.Password!, Input.RememberMe, lockoutOnFailure: false);
 
                 _logger.LogInformation("Sign in result: Succeeded={Succeeded}, IsLockedOut={IsLockedOut}, RequiresTwoFactor={RequiresTwoFactor}", 
                     result.Succeeded, result.IsLockedOut, result.RequiresTwoFactor);
@@ -67,7 +67,7 @@ namespace ScoreBurrow.Web.Pages.Account
                 }
                 else
                 {
-                    _logger.LogWarning("Login failed for {Email}", Input.Email);
+                    _logger.LogWarning("Login failed for {Email}", Input.Email!);
                     ModelState.AddModelError(string.Empty, "Invalid login attempt.");
                     return Page();
                 }

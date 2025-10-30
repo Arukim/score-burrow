@@ -2,14 +2,18 @@
 
 <PageTitle>League - @(league?.Name ?? "Unknown")</PageTitle>
 
+@using Microsoft.AspNetCore.Components.Authorization
 @using Microsoft.EntityFrameworkCore
 @using Microsoft.Extensions.Caching.Memory
 @using ScoreBurrow.Data
 @using ScoreBurrow.Data.Entities
 @using ScoreBurrow.Data.Enums
+@using ScoreBurrow.Web.Services
 @inject ScoreBurrowDbContext DbContext
 @inject IMemoryCache MemoryCache
 @inject NavigationManager NavigationManager
+@inject ILeagueService LeagueService
+@inject AuthenticationStateProvider AuthenticationStateProvider
 
 <h1>League @(league?.Name ?? "Unknown")</h1>
 
@@ -22,12 +26,20 @@
     else
     {
         <div class="alert alert-danger" role="alert">
-            League not found.
+            League not found or you don't have permission to view it.
         </div>
     }
 }
 else
 {
+    @if (!league.IsActive)
+    {
+        <div class="alert alert-warning" role="alert">
+            <span class="oi oi-warning me-2"></span>
+            <strong>This league is archived.</strong> It is hidden from the public leagues list.
+        </div>
+    }
+
     <div class="mb-4">
         @if (!string.IsNullOrWhiteSpace(league.Description))
         {
@@ -48,6 +60,12 @@ else
             <a href="/leagues" class="btn btn-outline-secondary">
                 <span class="oi oi-chevron-left" aria-hidden="true"></span> Back to Leagues
             </a>
+            @if (canManageLeague)
+            {
+                <a href="/leagues/@LeagueId/manage" class="btn btn-primary ms-2">
+                    <span class="oi oi-cog me-1" aria-hidden="true"></span> Manage League
+                </a>
+            }
         </div>
     </div>
 
@@ -205,6 +223,8 @@ else
     private List<TopPlayerView>? topPlayers;
     private List<GameView>? games;
     private bool isLoading = true;
+    private bool canManageLeague = false;
+    private string? userId;
     private int currentGamePage = 1;
     private int gamePages = 1;
     private int totalGames = 0;
@@ -213,6 +233,15 @@ else
     protected override async Task OnInitializedAsync()
     {
         currentGamePage = GamePage > 0 ? GamePage : 1;
+        
+        // Get current user
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+        if (user.Identity?.IsAuthenticated ?? false)
+        {
+            userId = user.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        }
+        
         await LoadDataAsync();
         isLoading = false;
     }
@@ -225,17 +254,38 @@ else
 
     private async Task LoadDataAsync()
     {
-        var cacheKey = $"league_{LeagueId}";
+        // Make cache key user-specific to avoid showing guest cached data to owners
+        var cacheKey = $"league_{LeagueId}_{userId ?? "anonymous"}";
 
         if (!MemoryCache.TryGetValue(cacheKey, out LeagueData? cachedLeagueData))
         {
             // Get league with basic info
             var leagueData = await DbContext.Leagues
                 .AsNoTracking()
-                .FirstOrDefaultAsync(l => l.Id == LeagueId && l.IsActive);
+                .FirstOrDefaultAsync(l => l.Id == LeagueId);
 
             if (leagueData == null)
                 return;
+
+            // If league is archived, check if user is the owner or a member
+            if (!leagueData.IsActive)
+            {
+                if (string.IsNullOrEmpty(userId))
+                {
+                    // Anonymous users can't access archived leagues
+                    return;
+                }
+
+                // Allow access if user is owner or member
+                var isOwnerOrMember = (leagueData.OwnerId == userId) ||
+                                     await LeagueService.IsMemberAsync(userId, LeagueId);
+
+                if (!isOwnerOrMember)
+                {
+                    // User is neither owner nor member, don't show archived league
+                    return;
+                }
+            }
 
             league = leagueData;
 
@@ -345,6 +395,12 @@ else
                 .CountAsync();
 
             gamePages = (int)Math.Ceiling(totalGames / (double)GamesPerPage);
+        }
+        
+        // Always recalculate canManageLeague (not cached) to ensure it's up-to-date
+        if (!string.IsNullOrEmpty(userId) && league != null)
+        {
+            canManageLeague = await LeagueService.IsAdminOrOwnerAsync(userId, LeagueId);
         }
     }
 

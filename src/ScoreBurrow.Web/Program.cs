@@ -29,6 +29,9 @@ builder.Services.AddServerSideBlazor();
 // Register rating service
 builder.Services.AddScoped<IRatingService, RatingService>();
 
+// Register league service
+builder.Services.AddScoped<ScoreBurrow.Web.Services.ILeagueService, ScoreBurrow.Web.Services.LeagueService>();
+
 // Configure DbContext with SQL Server
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") 
     ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");

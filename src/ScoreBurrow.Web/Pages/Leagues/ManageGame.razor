@@ -1,0 +1,355 @@
+@page "/leagues/{LeagueId:guid}/game/{GameId:guid}/manage"
+
+<PageTitle>Manage Game</PageTitle>
+
+@using Microsoft.AspNetCore.Components.Authorization
+@using ScoreBurrow.Data.Enums
+@using ScoreBurrow.Web.Models
+@using ScoreBurrow.Web.Services
+@inject IGameService GameService
+@inject NavigationManager NavigationManager
+@inject AuthenticationStateProvider AuthenticationStateProvider
+
+<h1>Manage Game</h1>
+
+@if (!string.IsNullOrEmpty(errorMessage))
+{
+    <div class="alert alert-danger">@errorMessage</div>
+}
+
+@if (isLoading)
+{
+    <p><em>Loading...</em></p>
+}
+else if (game == null)
+{
+    <div class="alert alert-danger">
+        Game not found or you do not have permission to manage it.
+    </div>
+    <a href="/leagues/@LeagueId" class="btn btn-outline-secondary">Back to League</a>
+}
+else
+{
+    <div class="card mb-4">
+        <div class="card-header">
+            <h3>@game.MapName</h3>
+            <span class="badge @(game.Status == GameStatus.InProgress ? "bg-primary" : "bg-secondary")">
+                @game.Status.ToString()
+            </span>
+        </div>
+        <div class="card-body">
+            <p><strong>Started:</strong> @game.StartTime.ToString("MMM dd, yyyy HH:mm")</p>
+            
+            <h5>Participants</h5>
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Pos</th>
+                        <th>Player</th>
+                        <th>Color</th>
+                        <th>Town</th>
+                        <th>Hero</th>
+                        <th>Gold</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var participant in game.Participants.OrderBy(p => p.Position))
+                    {
+                        <tr>
+                            <td>@participant.Position</td>
+                            <td>@participant.PlayerName</td>
+                            <td><span class="badge bg-info">@participant.PlayerColor</span></td>
+                            <td>@participant.TownName</td>
+                            <td>@(participant.HeroName ?? "None")</td>
+                            <td class="@(participant.GoldTrade >= 0 ? "text-success" : "text-danger")">
+                                @(participant.GoldTrade >= 0 ? "+" : "")@participant.GoldTrade
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    @if (game.Status == GameStatus.InProgress)
+    {
+        <div class="row mb-4">
+            <div class="col-md-4">
+                <div class="card h-100">
+                    <div class="card-header bg-success text-white">
+                        <h5 class="mb-0">Complete Game</h5>
+                    </div>
+                    <div class="card-body">
+                        <p>Select the winner to complete the game and calculate ratings.</p>
+                        <div class="mb-3">
+                            <label class="form-label">Winner</label>
+                            <select class="form-select" @bind="selectedWinnerId">
+                                <option value="">Select winner...</option>
+                                @foreach (var participant in game.Participants.OrderBy(p => p.Position))
+                                {
+                                    <option value="@participant.LeagueMembershipId">@participant.PlayerName</option>
+                                }
+                            </select>
+                        </div>
+                        <button class="btn btn-success w-100" @onclick="CompleteGame" disabled="@(isProcessing || selectedWinnerId == Guid.Empty)">
+                            @if (isProcessing && processingAction == "complete")
+                            {
+                                <span class="spinner-border spinner-border-sm me-1"></span>
+                            }
+                            Complete Game
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-4">
+                <div class="card h-100">
+                    <div class="card-header bg-warning text-dark">
+                        <h5 class="mb-0">Technical Loss</h5>
+                    </div>
+                    <div class="card-body">
+                        <p>Apply penalty to player who caused technical loss and restart game.</p>
+                        <div class="mb-3">
+                            <label class="form-label">Culprit</label>
+                            <select class="form-select" @bind="selectedCulpritId">
+                                <option value="">Select culprit...</option>
+                                @foreach (var participant in game.Participants.OrderBy(p => p.Position))
+                                {
+                                    <option value="@participant.LeagueMembershipId">@participant.PlayerName</option>
+                                }
+                            </select>
+                        </div>
+                        <p class="small text-muted">
+                            Culprit will receive rating penalty and -1000 gold in restarted game.
+                        </p>
+                        <button class="btn btn-warning w-100" @onclick="ApplyTechnicalLoss" disabled="@(isProcessing || selectedCulpritId == Guid.Empty)">
+                            @if (isProcessing && processingAction == "technical")
+                            {
+                                <span class="spinner-border spinner-border-sm me-1"></span>
+                            }
+                            Apply Technical Loss
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-4">
+                <div class="card h-100">
+                    <div class="card-header bg-danger text-white">
+                        <h5 class="mb-0">Cancel Game</h5>
+                    </div>
+                    <div class="card-body">
+                        <p>Cancel the game without affecting any ratings.</p>
+                        <p class="small text-muted mb-3">
+                            Use this if the game needs to be cancelled for any other reason.
+                        </p>
+                        <button class="btn btn-danger w-100" @onclick="ShowCancelConfirmation" disabled="@isProcessing">
+                            Cancel Game
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+
+    @if (showCancelModal)
+    {
+        <div class="modal show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Confirm Cancel</h5>
+                        <button type="button" class="btn-close" @onclick="HideCancelConfirmation"></button>
+                    </div>
+                    <div class="modal-body">
+                        <p>Are you sure you want to cancel this game? No ratings will be affected.</p>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" @onclick="HideCancelConfirmation" disabled="@isProcessing">
+                            No, Keep Game
+                        </button>
+                        <button type="button" class="btn btn-danger" @onclick="CancelGame" disabled="@isProcessing">
+                            @if (isProcessing && processingAction == "cancel")
+                            {
+                                <span class="spinner-border spinner-border-sm me-1"></span>
+                            }
+                            Yes, Cancel Game
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+
+    <div class="mt-3">
+        <a href="/leagues/@LeagueId/game/@GameId" class="btn btn-outline-secondary me-2">View Game Details</a>
+        <a href="/leagues/@LeagueId" class="btn btn-outline-secondary">Back to League</a>
+    </div>
+}
+
+@code {
+    [Parameter]
+    public Guid LeagueId { get; set; }
+
+    [Parameter]
+    public Guid GameId { get; set; }
+
+    private string? userId;
+    private bool isLoading = true;
+    private bool isProcessing = false;
+    private string? errorMessage;
+    private string? processingAction;
+    private bool showCancelModal = false;
+
+    private GameDetailsDto? game;
+    private Guid selectedWinnerId = Guid.Empty;
+    private Guid selectedCulpritId = Guid.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+
+        if (user.Identity?.IsAuthenticated ?? false)
+        {
+            userId = user.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+
+            if (!string.IsNullOrEmpty(userId))
+            {
+                await LoadGameAsync();
+            }
+        }
+
+        isLoading = false;
+    }
+
+    private async Task LoadGameAsync()
+    {
+        if (string.IsNullOrEmpty(userId)) return;
+
+        try
+        {
+            game = await GameService.GetGameForManagementAsync(GameId, userId);
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error loading game: {ex.Message}";
+        }
+    }
+
+    private async Task CompleteGame()
+    {
+        if (string.IsNullOrEmpty(userId) || selectedWinnerId == Guid.Empty)
+        {
+            errorMessage = "Please select a winner.";
+            return;
+        }
+
+        isProcessing = true;
+        processingAction = "complete";
+        errorMessage = null;
+
+        try
+        {
+            var success = await GameService.CompleteGameAsync(GameId, userId, selectedWinnerId);
+            if (success)
+            {
+                NavigationManager.NavigateTo($"/leagues/{LeagueId}/game/{GameId}");
+            }
+            else
+            {
+                errorMessage = "Failed to complete game.";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error completing game: {ex.Message}";
+        }
+        finally
+        {
+            isProcessing = false;
+            processingAction = null;
+        }
+    }
+
+    private async Task ApplyTechnicalLoss()
+    {
+        if (string.IsNullOrEmpty(userId) || selectedCulpritId == Guid.Empty)
+        {
+            errorMessage = "Please select the culprit player.";
+            return;
+        }
+
+        isProcessing = true;
+        processingAction = "technical";
+        errorMessage = null;
+
+        try
+        {
+            var newGameId = await GameService.ApplyTechnicalLossAsync(GameId, userId, selectedCulpritId);
+            if (newGameId.HasValue)
+            {
+                NavigationManager.NavigateTo($"/leagues/{LeagueId}/game/{newGameId.Value}/manage");
+            }
+            else
+            {
+                errorMessage = "Failed to apply technical loss.";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error applying technical loss: {ex.Message}";
+        }
+        finally
+        {
+            isProcessing = false;
+            processingAction = null;
+        }
+    }
+
+    private void ShowCancelConfirmation()
+    {
+        showCancelModal = true;
+    }
+
+    private void HideCancelConfirmation()
+    {
+        showCancelModal = false;
+    }
+
+    private async Task CancelGame()
+    {
+        if (string.IsNullOrEmpty(userId))
+        {
+            errorMessage = "User not authenticated.";
+            return;
+        }
+
+        isProcessing = true;
+        processingAction = "cancel";
+        errorMessage = null;
+
+        try
+        {
+            var success = await GameService.CancelGameAsync(GameId, userId);
+            if (success)
+            {
+                NavigationManager.NavigateTo($"/leagues/{LeagueId}");
+            }
+            else
+            {
+                errorMessage = "Failed to cancel game.";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error cancelling game: {ex.Message}";
+        }
+        finally
+        {
+            isProcessing = false;
+            processingAction = null;
+            showCancelModal = false;
+        }
+    }
+}

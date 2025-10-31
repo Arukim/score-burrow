@@ -65,6 +65,9 @@ else
                 <a href="/leagues/@LeagueId/manage" class="btn btn-primary ms-2">
                     <span class="oi oi-cog me-1" aria-hidden="true"></span> Manage League
                 </a>
+                <a href="/leagues/@LeagueId/game/create" class="btn btn-success ms-2">
+                    <span class="oi oi-plus me-1" aria-hidden="true"></span> New Game
+                </a>
             }
         </div>
     </div>
@@ -168,6 +171,12 @@ else
                                         }
                                     </td>
                                     <td>
+                                        @if (game.Status == GameStatus.InProgress && canManageLeague)
+                                        {
+                                            <a href="@($"/leagues/{LeagueId}/game/{game.Id}/manage")" class="btn btn-sm btn-warning me-1">
+                                                <span class="oi oi-wrench" aria-hidden="true"></span> Manage
+                                            </a>
+                                        }
                                         <a href="@($"/leagues/{LeagueId}/game/{game.Id}")" class="btn btn-sm btn-outline-primary">
                                             View <span class="oi oi-eye" aria-hidden="true"></span>
                                         </a>

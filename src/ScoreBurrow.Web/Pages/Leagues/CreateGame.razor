@@ -1,0 +1,496 @@
+@page "/leagues/{LeagueId:guid}/game/create"
+
+<PageTitle>Create New Game</PageTitle>
+
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.EntityFrameworkCore
+@using ScoreBurrow.Data
+@using ScoreBurrow.Data.Entities
+@using ScoreBurrow.Data.Enums
+@using ScoreBurrow.Web.Models
+@using ScoreBurrow.Web.Services
+@inject ScoreBurrowDbContext DbContext
+@inject IGameService GameService
+@inject ILeagueService LeagueService
+@inject NavigationManager NavigationManager
+@inject AuthenticationStateProvider AuthenticationStateProvider
+
+<h1>Create New Game</h1>
+
+@if (!canManage)
+{
+    <div class="alert alert-danger">
+        You do not have permission to create games in this league.
+    </div>
+}
+else if (isLoading)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <div class="mb-4">
+        <nav aria-label="Game creation progress">
+            <ol class="list-group list-group-horizontal">
+                <li class="list-group-item @(currentStep == 1 ? "active" : "")">1. Basic Setup</li>
+                <li class="list-group-item @(currentStep == 2 ? "active" : "")">2. Color Assignment</li>
+                <li class="list-group-item @(currentStep == 3 ? "active" : "")">3. Town & Gold</li>
+                <li class="list-group-item @(currentStep == 4 ? "active" : "")">4. Review</li>
+            </ol>
+        </nav>
+    </div>
+
+    @if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="alert alert-danger">@errorMessage</div>
+    }
+
+    @if (currentStep == 1)
+    {
+        <div class="card">
+            <div class="card-body">
+                <h3>Step 1: Basic Setup</h3>
+                <div class="mb-3">
+                    <label class="form-label">Map Name</label>
+                    <input type="text" class="form-control" @bind="mapName" placeholder="Enter map name" />
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Number of Players</label>
+                    <select class="form-select" @bind="playerCount">
+                        <option value="2">2 Players</option>
+                        <option value="3">3 Players</option>
+                        <option value="4">4 Players</option>
+                        <option value="5">5 Players</option>
+                        <option value="6">6 Players</option>
+                        <option value="7">7 Players</option>
+                        <option value="8">8 Players</option>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Select Players</label>
+                    @foreach (var member in availableMembers)
+                    {
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" 
+                                   checked="@selectedMembers.Contains(member.Id)"
+                                   @onchange="@(() => TogglePlayer(member.Id))" />
+                            <label class="form-check-label">
+                                @(member.PlayerDisplayName ?? member.PlayerNickname) (Rating: @member.Glicko2Rating.ToString("F0"))
+                            </label>
+                        </div>
+                    }
+                </div>
+                <button class="btn btn-primary" @onclick="NextStep" disabled="@(!CanProceedFromStep1())">
+                    Next <span class="oi oi-chevron-right"></span>
+                </button>
+            </div>
+        </div>
+    }
+    else if (currentStep == 2)
+    {
+        <div class="card">
+            <div class="card-body">
+                <h3>Step 2: Color Assignment</h3>
+                <p class="text-muted">Assign player colors. Only the first @playerCount colors are available.</p>
+                <button class="btn btn-secondary mb-3" @onclick="ShuffleColors">
+                    <span class="oi oi-random"></span> Shuffle Colors
+                </button>
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Player</th>
+                            <th>Color</th>
+                            <th>Position</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @for (int i = 0; i < playerAssignments.Count; i++)
+                        {
+                            var assignment = playerAssignments[i];
+                            var index = i;
+                            <tr>
+                                <td>@assignment.PlayerName</td>
+                                <td>
+                                    <select class="form-select" @bind="assignment.PlayerColor">
+                                        @for (int c = 0; c < playerCount; c++)
+                                        {
+                                            var color = (PlayerColor)c;
+                                            <option value="@color">@color.ToString()</option>
+                                        }
+                                    </select>
+                                </td>
+                                <td>@(i + 1)</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+                <button class="btn btn-secondary me-2" @onclick="PreviousStep">
+                    <span class="oi oi-chevron-left"></span> Back
+                </button>
+                <button class="btn btn-primary" @onclick="NextStep">
+                    Next <span class="oi oi-chevron-right"></span>
+                </button>
+            </div>
+        </div>
+    }
+    else if (currentStep == 3)
+    {
+        <div class="card">
+            <div class="card-body">
+                <h3>Step 3: Town, Hero & Gold Trading</h3>
+                @for (int i = 0; i < playerAssignments.Count; i++)
+                {
+                    var assignment = playerAssignments[i];
+                    var index = i;
+                    <div class="card mb-3">
+                        <div class="card-header">
+                            <strong>Position @(i + 1): @assignment.PlayerName (@assignment.PlayerColor)</strong>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-4">
+                                    <label class="form-label">Town</label>
+                                    <select class="form-select" @bind="assignment.TownId" @bind:after="@(() => OnTownChanged(index))">
+                                        <option value="0">Select Town...</option>
+                                        @foreach (var town in allTowns)
+                                        {
+                                            <option value="@town.Id">@town.Name</option>
+                                        }
+                                    </select>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Hero (Optional)</label>
+                                    <select class="form-select" @bind="assignment.HeroId">
+                                        <option value="">No Hero</option>
+                                        @if (assignment.AvailableHeroes != null)
+                                        {
+                                            @foreach (var hero in assignment.AvailableHeroes)
+                                            {
+                                                <option value="@hero.Id">@hero.Name</option>
+                                            }
+                                        }
+                                    </select>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Bid Amount (Gold)</label>
+                                    <input type="number" class="form-control" @bind="assignment.BidAmount" @bind:after="RecalculateGold" />
+                                </div>
+                            </div>
+                            <div class="mt-2">
+                                <strong>Current Gold: </strong>
+                                <span class="@(assignment.NetGold >= 0 ? "text-success" : "text-danger")">
+                                    @assignment.NetGold
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                }
+                <button class="btn btn-secondary me-2" @onclick="PreviousStep">
+                    <span class="oi oi-chevron-left"></span> Back
+                </button>
+                <button class="btn btn-primary" @onclick="NextStep" disabled="@(!CanProceedFromStep3())">
+                    Next <span class="oi oi-chevron-right"></span>
+                </button>
+            </div>
+        </div>
+    }
+    else if (currentStep == 4)
+    {
+        <div class="card">
+            <div class="card-body">
+                <h3>Step 4: Review & Confirm</h3>
+                <div class="mb-3">
+                    <strong>Map:</strong> @mapName
+                </div>
+                <h5>Participants</h5>
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Pos</th>
+                            <th>Player</th>
+                            <th>Color</th>
+                            <th>Town</th>
+                            <th>Hero</th>
+                            <th>Gold</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @for (int i = 0; i < playerAssignments.Count; i++)
+                        {
+                            var assignment = playerAssignments[i];
+                            <tr>
+                                <td>@(i + 1)</td>
+                                <td>@assignment.PlayerName</td>
+                                <td><span class="badge bg-info">@assignment.PlayerColor</span></td>
+                                <td>@assignment.TownName</td>
+                                <td>@(assignment.HeroName ?? "None")</td>
+                                <td class="@(assignment.NetGold >= 0 ? "text-success" : "text-danger")">
+                                    @(assignment.NetGold >= 0 ? "+" : "")@assignment.NetGold
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+                <button class="btn btn-secondary me-2" @onclick="PreviousStep">
+                    <span class="oi oi-chevron-left"></span> Back
+                </button>
+                <button class="btn btn-success" @onclick="SubmitGame" disabled="@isCreating">
+                    @if (isCreating)
+                    {
+                        <span class="spinner-border spinner-border-sm me-1"></span>
+                    }
+                    Start Game
+                </button>
+            </div>
+        </div>
+    }
+
+    <div class="mt-3">
+        <a href="/leagues/@LeagueId" class="btn btn-outline-secondary">Cancel</a>
+    </div>
+}
+
+@code {
+    [Parameter]
+    public Guid LeagueId { get; set; }
+
+    private string? userId;
+    private bool canManage = false;
+    private bool isLoading = true;
+    private bool isCreating = false;
+    private string? errorMessage;
+
+    private int currentStep = 1;
+    private string mapName = "";
+    private int playerCount = 4;
+
+    private List<LeagueMembership> availableMembers = new();
+    private HashSet<Guid> selectedMembers = new();
+    private List<PlayerAssignment> playerAssignments = new();
+    private List<Town> allTowns = new();
+    private List<Hero> allHeroes = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+        
+        if (user.Identity?.IsAuthenticated ?? false)
+        {
+            userId = user.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            
+            if (!string.IsNullOrEmpty(userId))
+            {
+                canManage = await LeagueService.IsAdminOrOwnerAsync(userId, LeagueId);
+            }
+        }
+
+        if (canManage)
+        {
+            await LoadDataAsync();
+        }
+
+        isLoading = false;
+    }
+
+    private async Task LoadDataAsync()
+    {
+        availableMembers = await DbContext.LeagueMemberships
+            .Where(m => m.LeagueId == LeagueId)
+            .OrderBy(m => m.PlayerNickname)
+            .ToListAsync();
+
+        allTowns = await DbContext.Towns
+            .OrderBy(t => t.Name)
+            .ToListAsync();
+
+        allHeroes = await DbContext.Heroes
+            .Include(h => h.Town)
+            .ToListAsync();
+    }
+
+    private void TogglePlayer(Guid memberId)
+    {
+        if (selectedMembers.Contains(memberId))
+        {
+            selectedMembers.Remove(memberId);
+        }
+        else if (selectedMembers.Count < playerCount)
+        {
+            selectedMembers.Add(memberId);
+        }
+    }
+
+    private bool CanProceedFromStep1()
+    {
+        return !string.IsNullOrWhiteSpace(mapName) && 
+               selectedMembers.Count == playerCount;
+    }
+
+    private bool CanProceedFromStep3()
+    {
+        return playerAssignments.All(p => p.TownId > 0);
+    }
+
+    private void NextStep()
+    {
+        if (currentStep == 1 && CanProceedFromStep1())
+        {
+            // Initialize player assignments
+            playerAssignments = selectedMembers.Select((memberId, index) =>
+            {
+                var member = availableMembers.First(m => m.Id == memberId);
+                return new PlayerAssignment
+                {
+                    MembershipId = memberId,
+                    PlayerName = member.PlayerDisplayName ?? member.PlayerNickname,
+                    PlayerColor = (PlayerColor)index,
+                    Position = index + 1
+                };
+            }).ToList();
+            currentStep = 2;
+        }
+        else if (currentStep == 2)
+        {
+            // Update positions based on color
+            playerAssignments = playerAssignments
+                .OrderBy(p => (int)p.PlayerColor)
+                .Select((p, index) => {
+                    p.Position = index + 1;
+                    return p;
+                })
+                .ToList();
+            currentStep = 3;
+        }
+        else if (currentStep == 3 && CanProceedFromStep3())
+        {
+            // Prepare review data
+            foreach (var assignment in playerAssignments)
+            {
+                assignment.TownName = allTowns.FirstOrDefault(t => t.Id == assignment.TownId)?.Name ?? "";
+                if (assignment.HeroId.HasValue && assignment.HeroId.Value > 0)
+                {
+                    assignment.HeroName = allHeroes.FirstOrDefault(h => h.Id == assignment.HeroId)?.Name;
+                }
+            }
+            currentStep = 4;
+        }
+    }
+
+    private void PreviousStep()
+    {
+        if (currentStep > 1)
+        {
+            currentStep--;
+        }
+    }
+
+    private void ShuffleColors()
+    {
+        var random = new Random();
+        var availableColors = Enumerable.Range(0, playerCount).Select(i => (PlayerColor)i).ToList();
+        
+        foreach (var assignment in playerAssignments)
+        {
+            var index = random.Next(availableColors.Count);
+            assignment.PlayerColor = availableColors[index];
+            availableColors.RemoveAt(index);
+        }
+    }
+
+    private void OnTownChanged(int index)
+    {
+        var assignment = playerAssignments[index];
+        if (assignment.TownId > 0)
+        {
+            assignment.AvailableHeroes = allHeroes
+                .Where(h => h.TownId == assignment.TownId)
+                .ToList();
+            assignment.HeroId = null;
+        }
+        else
+        {
+            assignment.AvailableHeroes = null;
+            assignment.HeroId = null;
+        }
+    }
+
+    private void RecalculateGold()
+    {
+        // Reset all gold values
+        foreach (var assignment in playerAssignments)
+        {
+            assignment.NetGold = -assignment.BidAmount;
+        }
+
+        // Distribute bids according to rules
+        for (int i = 0; i < playerAssignments.Count; i++)
+        {
+            var bidAmount = playerAssignments[i].BidAmount;
+            if (bidAmount > 0)
+            {
+                var remainingPlayers = playerCount - i - 1;
+                if (remainingPlayers > 0)
+                {
+                    var sharePerPlayer = bidAmount / remainingPlayers;
+                    for (int j = i + 1; j < playerAssignments.Count; j++)
+                    {
+                        playerAssignments[j].NetGold += sharePerPlayer;
+                    }
+                }
+            }
+        }
+    }
+
+    private async Task SubmitGame()
+    {
+        if (string.IsNullOrEmpty(userId))
+        {
+            errorMessage = "User not authenticated.";
+            return;
+        }
+
+        isCreating = true;
+        errorMessage = null;
+
+        try
+        {
+            var request = new CreateGameRequest
+            {
+                MapName = mapName,
+                Participants = playerAssignments.Select(p => new ParticipantRequest
+                {
+                    LeagueMembershipId = p.MembershipId,
+                    PlayerColor = p.PlayerColor,
+                    Position = p.Position,
+                    TownId = p.TownId,
+                    HeroId = p.HeroId,
+                    GoldTrade = p.NetGold
+                }).ToList()
+            };
+
+            var gameId = await GameService.CreateGameAsync(LeagueId, userId, request);
+            NavigationManager.NavigateTo($"/leagues/{LeagueId}/game/{gameId}/manage");
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error creating game: {ex.Message}";
+            isCreating = false;
+        }
+    }
+
+    private class PlayerAssignment
+    {
+        public Guid MembershipId { get; set; }
+        public string PlayerName { get; set; } = "";
+        public PlayerColor PlayerColor { get; set; }
+        public int Position { get; set; }
+        public int TownId { get; set; }
+        public int? HeroId { get; set; }
+        public int BidAmount { get; set; }
+        public int NetGold { get; set; }
+        public string TownName { get; set; } = "";
+        public string? HeroName { get; set; }
+        public List<Hero>? AvailableHeroes { get; set; }
+    }
+}

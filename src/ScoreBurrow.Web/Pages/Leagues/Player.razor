@@ -44,6 +44,8 @@ else
         </div>
     </div>
 
+
+
     <div class="row">
         <div class="col-md-4">
             <div class="card">
@@ -51,10 +53,75 @@ else
                     <h5>Player Statistics</h5>
                 </div>
                 <div class="card-body">
-                    <div class="mb-2">
+                    <div class="mb-3">
                         <strong>Rating:</strong>
                         <span class="badge bg-primary">@(membership?.Glicko2Rating.ToString("F0") ?? "0")</span>
                     </div>
+
+                    @if (ratingHistory != null && ratingHistory.Any())
+                    {
+                        <div class="mb-3">
+                            <div class="chart-container" style="width: 100%; height: 220px; position: relative;">
+                                <!-- Y-axis labels -->
+                                <div style="position: absolute; left: 0; top: 10px; font-size: 11px; color: #6c757d; text-align: right;">
+                                    @(Math.Round(ratingHistory.Max(r => r.NewRating)).ToString())
+                                </div>
+                                <div style="position: absolute; left: 0; top: 90px; font-size: 11px; color: #6c757d; text-align: right;">
+                                    @(Math.Round((ratingHistory.Min(r => r.NewRating) + ratingHistory.Max(r => r.NewRating)) / 2).ToString())
+                                </div>
+                                <div style="position: absolute; left: 0; top: 170px; font-size: 11px; color: #6c757d; text-align: right;">
+                                    @(Math.Round(ratingHistory.Min(r => r.NewRating)).ToString())
+                                </div>
+
+                                <svg width="100%" height="200" viewBox="0 0 600 200"
+                                     style="border: 1px solid #dee2e6; border-radius: 0.375rem; background: white; display: block;">
+                                    @{
+                                        var minRating = ratingHistory.Min(r => r.NewRating);
+                                        var maxRating = ratingHistory.Max(r => r.NewRating);
+                                        var ratingRange = Math.Max(maxRating - minRating, 1); // Avoid division by zero
+                                        var minDate = ratingHistory.Min(r => r.CalculatedAt);
+                                        var maxDate = ratingHistory.Max(r => r.CalculatedAt);
+                                        var points = string.Join(" ",
+                                            ratingHistory.Select((rh, i) => {
+                                                var x = i * 600L / Math.Max(ratingHistory.Count - 1, 1);
+                                                var y = 180 - ((rh.NewRating - minRating) * 160 / ratingRange);
+                                                return $"{x},{y}";
+                                            })
+                                        );
+                                    }
+                                    @if (!string.IsNullOrEmpty(points))
+                                    {
+                                        <polyline fill="none" stroke="#007bff" stroke-width="2" points="@points" />
+                                    }
+                                </svg>
+
+                                <!-- X-axis labels -->
+                                @if (ratingHistory.Count > 1)
+                                {
+                                    <div style="position: absolute; left: 10px; bottom: 2px; font-size: 11px; color: #6c757d;">
+                                        @minDate.ToString("MMM yyyy")
+                                    </div>
+                                    @if (ratingHistory.Count > 10)
+                                    {
+                                        var midDate = minDate.AddDays((maxDate - minDate).TotalDays / 2);
+                                        <div style="position: absolute; left: 50%; bottom: 2px; transform: translateX(-50%); font-size: 11px; color: #6c757d;">
+                                            @midDate.ToString("MMM yyyy")
+                                        </div>
+                                    }
+                                    <div style="position: absolute; right: 10px; bottom: 2px; font-size: 11px; color: #6c757d;">
+                                        @maxDate.ToString("MMM yyyy")
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                    }
+                    else if (ratingHistory != null)
+                    {
+                        <div class="mb-3">
+                            <em>No rating history available</em>
+                        </div>
+                    }
+
                     @if (membership.Statistics != null)
                     {
                         <div class="mb-2">
@@ -194,6 +261,7 @@ else
 
     private LeagueMembership? membership;
     private List<GameView>? games;
+    private List<RatingHistory>? ratingHistory;
     private bool isLoading = true;
     private int currentGamePage = 1;
     private int gamePages = 1;
@@ -230,6 +298,13 @@ else
 
             if (membership == null)
                 return;
+
+            // Get rating history
+            ratingHistory = await DbContext.RatingHistory
+                .AsNoTracking()
+                .Where(rh => rh.LeagueMembershipId == MembershipId)
+                .OrderBy(rh => rh.CalculatedAt)
+                .ToListAsync();
 
             // Get total games count for this player
             var totalGames = await DbContext.GameParticipants
@@ -275,7 +350,7 @@ else
                 Winner = g.Winner
             }).ToList();
 
-            cachedData = new PlayerData { Membership = membership, Games = games };
+            cachedData = new PlayerData { Membership = membership, Games = games, RatingHistory = ratingHistory };
 
             var cacheOptions = new MemoryCacheEntryOptions()
                 .SetSlidingExpiration(TimeSpan.FromMinutes(10));
@@ -286,6 +361,7 @@ else
         {
             membership = cachedData.Membership;
             games = cachedData.Games;
+            ratingHistory = cachedData.RatingHistory;
         }
     }
 
@@ -330,6 +406,7 @@ else
     {
         public LeagueMembership? Membership { get; set; }
         public List<GameView>? Games { get; set; }
+        public List<RatingHistory>? RatingHistory { get; set; }
     }
 
     private class GameView

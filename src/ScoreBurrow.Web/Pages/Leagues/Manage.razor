@@ -1,0 +1,847 @@
+@page "/leagues/{LeagueId:guid}/manage"
+
+<PageTitle>Manage League</PageTitle>
+
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.EntityFrameworkCore
+@using ScoreBurrow.Data
+@using ScoreBurrow.Data.Entities
+@using ScoreBurrow.Data.Enums
+@using ScoreBurrow.Web.Services
+@inject ScoreBurrowDbContext DbContext
+@inject ILeagueService LeagueService
+@inject NavigationManager NavigationManager
+@inject AuthenticationStateProvider AuthenticationStateProvider
+
+<AuthorizeView>
+    <Authorized>
+        @if (isLoading)
+        {
+            <p><em>Loading...</em></p>
+        }
+        else if (leagueEntity == null)
+        {
+            <div class="alert alert-danger" role="alert">
+                League not found or you don't have permission to manage it.
+            </div>
+            <a href="/leagues" class="btn btn-secondary">Back to Leagues</a>
+        }
+        else
+        {
+            <h1>Manage League: @leagueEntity.Name</h1>
+
+            @if (!string.IsNullOrEmpty(successMessage))
+            {
+                <div class="alert alert-success alert-dismissible fade show" role="alert">
+                    @successMessage
+                    <button type="button" class="btn-close" @onclick="@(() => successMessage = null)"></button>
+                </div>
+            }
+
+            @if (!string.IsNullOrEmpty(errorMessage))
+            {
+                <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                    @errorMessage
+                    <button type="button" class="btn-close" @onclick="@(() => errorMessage = null)"></button>
+                </div>
+            }
+
+            <ul class="nav nav-tabs mb-4" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link @(activeTab == "settings" ? "active" : "")" @onclick="@(() => activeTab = "settings")">
+                        <span class="oi oi-cog me-1"></span> Settings
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link @(activeTab == "members" ? "active" : "")" @onclick="@(() => activeTab = "members")">
+                        <span class="oi oi-people me-1"></span> Members
+                    </button>
+                </li>
+            </ul>
+
+            <div class="tab-content">
+                @if (activeTab == "settings")
+                {
+                    <div class="row">
+                        <div class="col-md-8">
+                            <div class="card mb-3">
+                                <div class="card-header">
+                                    <h5 class="mb-0">League Information</h5>
+                                </div>
+                                <div class="card-body">
+                                    <EditForm Model="@editModel" OnValidSubmit="@HandleUpdateLeague" Context="editContext">
+                                        <DataAnnotationsValidator />
+                                        <ValidationSummary />
+
+                                        <div class="mb-3">
+                                            <label for="editName" class="form-label">Name <span class="text-danger">*</span></label>
+                                            <InputText id="editName" class="form-control" @bind-Value="editModel.Name" />
+                                            <ValidationMessage For="@(() => editModel.Name)" />
+                                        </div>
+
+                                        <div class="mb-3">
+                                            <label for="editDescription" class="form-label">Description</label>
+                                            <InputTextArea id="editDescription" class="form-control" @bind-Value="editModel.Description" rows="4" />
+                                            <ValidationMessage For="@(() => editModel.Description)" />
+                                        </div>
+
+                                        <button type="submit" class="btn btn-primary" disabled="@isSubmitting">
+                                            @if (isSubmitting)
+                                            {
+                                                <span class="spinner-border spinner-border-sm me-2"></span>
+                                            }
+                                            <span class="oi oi-check me-1"></span> Save Changes
+                                        </button>
+                                    </EditForm>
+                                </div>
+                            </div>
+
+                            @if (isOwner)
+                            {
+                                <div class="card mb-3">
+                                    <div class="card-header">
+                                        <h5 class="mb-0">Archive League</h5>
+                                    </div>
+                                    <div class="card-body">
+                                        @if (leagueEntity.IsActive)
+                                        {
+                                            <p>Archiving will hide this league from the public leagues list, but all data will be preserved. You can unarchive it later.</p>
+                                            <button class="btn btn-warning" @onclick="@(() => showArchiveConfirm = true)">
+                                                <span class="oi oi-box me-1"></span> Archive League
+                                            </button>
+                                        }
+                                        else
+                                        {
+                                            <p class="text-muted">This league is currently archived.</p>
+                                            <button class="btn btn-success" @onclick="@HandleUnarchiveLeague" disabled="@isSubmitting">
+                                                <span class="oi oi-action-undo me-1"></span> Unarchive League
+                                            </button>
+                                        }
+                                    </div>
+                                </div>
+
+                                <div class="card border-danger mb-3">
+                                    <div class="card-header bg-danger text-white">
+                                        <h5 class="mb-0">Danger Zone</h5>
+                                    </div>
+                                    <div class="card-body">
+                                        <p class="text-danger"><strong>Warning:</strong> Deleting a league is permanent and cannot be undone. All games, statistics, and member data will be permanently deleted.</p>
+                                        <button class="btn btn-danger" @onclick="@(() => showDeleteConfirm = true)">
+                                            <span class="oi oi-trash me-1"></span> Delete League Permanently
+                                        </button>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                }
+                else if (activeTab == "members")
+                {
+                    <div class="row">
+                        <div class="col-12">
+                            <div class="card mb-3">
+                                <div class="card-header d-flex justify-content-between align-items-center">
+                                    <h5 class="mb-0">League Members (@members.Count)</h5>
+                                    <button class="btn btn-sm btn-primary" @onclick="@(() => showAddMember = true)">
+                                        <span class="oi oi-plus me-1"></span> Add Member
+                                    </button>
+                                </div>
+                                <div class="card-body">
+                                    @if (!members.Any())
+                                    {
+                                        <p class="text-muted">No members found.</p>
+                                    }
+                                    else
+                                    {
+                                        <div class="table-responsive">
+                                            <table class="table table-striped">
+                                                <thead>
+                                                    <tr>
+                                                        <th>Name</th>
+                                                        <th>Email</th>
+                                                        <th>Role</th>
+                                                        <th>Joined</th>
+                                                        <th>Actions</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    @foreach (var member in members.OrderByDescending(m => m.Role))
+                                                    {
+                                                        <tr>
+                                                            <td>
+                                                                @member.PlayerDisplayName
+                                                                @if (!member.IsRegistered)
+                                                                {
+                                                                    <span class="badge bg-warning ms-1">Unregistered</span>
+                                                                }
+                                                            </td>
+                                                            <td>@member.Email</td>
+                                                            <td>
+                                                                <span class="badge @GetRoleBadgeClass(member.Role)">
+                                                                    @member.Role
+                                                                </span>
+                                                            </td>
+                                                            <td>@member.JoinedDate.ToString("MMM dd, yyyy")</td>
+                                                            <td>
+                                                                @if (!member.IsRegistered)
+                                                                {
+                                                                    <button class="btn btn-sm btn-outline-info me-1" @onclick="@(() => { linkMembershipId = member.Id; linkMemberName = member.PlayerDisplayName; showLinkMember = true; })" disabled="@isSubmitting">
+                                                                        <span class="oi oi-link"></span> Link to User
+                                                                    </button>
+                                                                }
+                                                                else if (member.Role != LeagueRole.Owner)
+                                                                {
+                                                                    <button class="btn btn-sm btn-outline-info me-1" @onclick="@(() => { changeMembershipId = member.Id; changeMemberName = member.PlayerDisplayName; changeMemberCurrentEmail = member.Email ?? string.Empty; changeMemberEmail = string.Empty; showChangeMember = true; })" disabled="@isSubmitting">
+                                                                        <span class="oi oi-pencil"></span> Change User
+                                                                    </button>
+                                                                    @if (member.Role == LeagueRole.Member)
+                                                                    {
+                                                                        <button class="btn btn-sm btn-outline-primary me-1" @onclick="@(() => PromoteToAdmin(member.Id))" disabled="@isSubmitting">
+                                                                            <span class="oi oi-arrow-top"></span> Promote to Admin
+                                                                        </button>
+                                                                    }
+                                                                    else if (member.Role == LeagueRole.Admin && isOwner)
+                                                                    {
+                                                                        <button class="btn btn-sm btn-outline-secondary me-1" @onclick="@(() => DemoteToMember(member.Id))" disabled="@isSubmitting">
+                                                                            <span class="oi oi-arrow-bottom"></span> Demote to Member
+                                                                        </button>
+                                                                    }
+                                                                    <button class="btn btn-sm btn-outline-danger" @onclick="@(() => RemoveMember(member.Id, member.PlayerDisplayName))" disabled="@isSubmitting">
+                                                                        <span class="oi oi-trash"></span> Remove
+                                                                    </button>
+                                                                }
+                                                            </td>
+                                                        </tr>
+                                                    }
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    }
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+
+            <!-- Add Member Modal -->
+            @if (showAddMember)
+            {
+                <div class="modal show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+                    <div class="modal-dialog">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title">Add Member</h5>
+                                <button type="button" class="btn-close" @onclick="@(() => { showAddMember = false; addMemberEmail = string.Empty; addMemberDisplayName = string.Empty; })"></button>
+                            </div>
+                            <div class="modal-body">
+                                <div class="mb-3">
+                                    <label for="memberEmail" class="form-label">Member Email <span class="text-danger">*</span></label>
+                                    <input type="email" class="form-control" id="memberEmail" @bind="addMemberEmail" placeholder="Enter user's email address" />
+                                    <div class="form-text">The user must be registered on the site.</div>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="memberDisplayName" class="form-label">Display Name (Optional)</label>
+                                    <input type="text" class="form-control" id="memberDisplayName" @bind="addMemberDisplayName" placeholder="Enter custom display name" />
+                                    <div class="form-text">If not provided, username will be used.</div>
+                                </div>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" @onclick="@(() => { showAddMember = false; addMemberEmail = string.Empty; addMemberDisplayName = string.Empty; })">Cancel</button>
+                                <button type="button" class="btn btn-primary" @onclick="@HandleAddMember" disabled="@(isSubmitting || string.IsNullOrWhiteSpace(addMemberEmail))">
+                                    <span class="oi oi-plus me-1"></span> Add Member
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            }
+
+            <!-- Link Member Modal -->
+            @if (showLinkMember)
+            {
+                <div class="modal show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+                    <div class="modal-dialog">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title">Link Member to User</h5>
+                                <button type="button" class="btn-close" @onclick="@(() => { showLinkMember = false; linkMemberEmail = string.Empty; linkMembershipId = Guid.Empty; })"></button>
+                            </div>
+                            <div class="modal-body">
+                                <div class="alert alert-info">
+                                    <strong>Link unregistered member:</strong> @linkMemberName
+                                </div>
+                                <div class="mb-3">
+                                    <label for="linkEmail" class="form-label">User Email <span class="text-danger">*</span></label>
+                                    <input type="email" class="form-control" id="linkEmail" @bind="linkMemberEmail" placeholder="Enter registered user's email" />
+                                    <div class="form-text">This will link the existing member to a registered user.</div>
+                                </div>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" @onclick="@(() => { showLinkMember = false; linkMemberEmail = string.Empty; linkMembershipId = Guid.Empty; })">Cancel</button>
+                                <button type="button" class="btn btn-primary" @onclick="@HandleLinkMember" disabled="@(isSubmitting || string.IsNullOrWhiteSpace(linkMemberEmail))">
+                                    <span class="oi oi-link me-1"></span> Link Member
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            }
+
+            <!-- Change Member User Modal -->
+            @if (showChangeMember)
+            {
+                <div class="modal show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+                    <div class="modal-dialog">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title">Change User Binding</h5>
+                                <button type="button" class="btn-close" @onclick="@(() => { showChangeMember = false; changeMemberEmail = string.Empty; changeMembershipId = Guid.Empty; })"></button>
+                            </div>
+                            <div class="modal-body">
+                                <div class="alert alert-info">
+                                    <strong>Change user for member:</strong> @changeMemberName<br />
+                                    <strong>Current user:</strong> @changeMemberCurrentEmail
+                                </div>
+                                <div class="mb-3">
+                                    <label for="changeEmail" class="form-label">New User Email <span class="text-danger">*</span></label>
+                                    <input type="email" class="form-control" id="changeEmail" @bind="changeMemberEmail" placeholder="Enter new user's email" />
+                                    <div class="form-text">This will change which user account this membership is linked to.</div>
+                                </div>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" @onclick="@(() => { showChangeMember = false; changeMemberEmail = string.Empty; changeMembershipId = Guid.Empty; })">Cancel</button>
+                                <button type="button" class="btn btn-primary" @onclick="@HandleChangeMember" disabled="@(isSubmitting || string.IsNullOrWhiteSpace(changeMemberEmail))">
+                                    <span class="oi oi-pencil me-1"></span> Change User
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            }
+
+            <!-- Archive Confirmation Modal -->
+            @if (showArchiveConfirm)
+            {
+                <div class="modal show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+                    <div class="modal-dialog">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title">Archive League</h5>
+                                <button type="button" class="btn-close" @onclick="@(() => showArchiveConfirm = false)"></button>
+                            </div>
+                            <div class="modal-body">
+                                <p>Are you sure you want to archive this league? It will be hidden from the public leagues list but you can unarchive it later.</p>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" @onclick="@(() => showArchiveConfirm = false)">Cancel</button>
+                                <button type="button" class="btn btn-warning" @onclick="@HandleArchiveLeague">Archive</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            }
+
+            <!-- Delete Confirmation Modal -->
+            @if (showDeleteConfirm)
+            {
+                <div class="modal show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+                    <div class="modal-dialog">
+                        <div class="modal-content">
+                            <div class="modal-header bg-danger text-white">
+                                <h5 class="modal-title">Delete League Permanently</h5>
+                                <button type="button" class="btn-close btn-close-white" @onclick="@(() => showDeleteConfirm = false)"></button>
+                            </div>
+                            <div class="modal-body">
+                                <p class="text-danger"><strong>WARNING: This action cannot be undone!</strong></p>
+                                <p>Deleting this league will permanently remove:</p>
+                                <ul>
+                                    <li>All games in this league</li>
+                                    <li>All game participants and statistics</li>
+                                    <li>All member data and ratings</li>
+                                    <li>All rating history</li>
+                                </ul>
+                                <p>Type <strong>DELETE</strong> to confirm:</p>
+                                <input type="text" class="form-control" @bind="deleteConfirmText" placeholder="Type DELETE" />
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" @onclick="@(() => { showDeleteConfirm = false; deleteConfirmText = string.Empty; })">Cancel</button>
+                                <button type="button" class="btn btn-danger" @onclick="@HandleDeleteLeague" disabled="@(deleteConfirmText != "DELETE")">
+                                    <span class="oi oi-trash me-1"></span> Delete Permanently
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            }
+        }
+    </Authorized>
+    <NotAuthorized>
+        <div class="alert alert-warning" role="alert">
+            You must be logged in to manage leagues.
+            <a href="/Account/Login?returnUrl=/leagues/@LeagueId/manage" class="alert-link">Login here</a>
+        </div>
+    </NotAuthorized>
+</AuthorizeView>
+
+@code {
+    [Parameter]
+    public Guid LeagueId { get; set; }
+
+    private ScoreBurrow.Data.Entities.League? leagueEntity;
+    private List<MemberViewModel> members = new();
+    private EditLeagueModel editModel = new();
+    private bool isLoading = true;
+    private bool isSubmitting = false;
+    private bool isOwner = false;
+    private bool isAdminOrOwner = false;
+    private string? userId;
+    private string? successMessage;
+    private string? errorMessage;
+    private string activeTab = "settings";
+    private bool showAddMember = false;
+    private bool showLinkMember = false;
+    private bool showChangeMember = false;
+    private bool showArchiveConfirm = false;
+    private bool showDeleteConfirm = false;
+    private string addMemberEmail = string.Empty;
+    private string addMemberDisplayName = string.Empty;
+    private string linkMemberEmail = string.Empty;
+    private string linkMemberName = string.Empty;
+    private Guid linkMembershipId = Guid.Empty;
+    private string changeMemberEmail = string.Empty;
+    private string changeMemberName = string.Empty;
+    private string changeMemberCurrentEmail = string.Empty;
+    private Guid changeMembershipId = Guid.Empty;
+    private string deleteConfirmText = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+
+        if (!user.Identity?.IsAuthenticated ?? true)
+        {
+            isLoading = false;
+            return;
+        }
+
+        userId = user.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        if (string.IsNullOrEmpty(userId))
+        {
+            isLoading = false;
+            return;
+        }
+
+        await LoadDataAsync();
+        isLoading = false;
+    }
+
+    private async Task LoadDataAsync()
+    {
+        // Check permissions
+        isOwner = await LeagueService.IsOwnerAsync(userId!, LeagueId);
+        isAdminOrOwner = await LeagueService.IsAdminOrOwnerAsync(userId!, LeagueId);
+
+        if (!isAdminOrOwner)
+        {
+            return;
+        }
+
+        // Load league
+        leagueEntity = await DbContext.Leagues.FindAsync(LeagueId);
+        if (leagueEntity == null)
+        {
+            return;
+        }
+
+        editModel = new EditLeagueModel
+        {
+            Name = leagueEntity.Name,
+            Description = leagueEntity.Description
+        };
+
+        // Load members
+        await LoadMembersAsync();
+    }
+
+    private async Task LoadMembersAsync()
+    {
+        var membershipsData = await DbContext.LeagueMemberships
+            .AsNoTracking()
+            .Where(m => m.LeagueId == LeagueId)
+            .OrderByDescending(m => m.Role)
+            .ThenBy(m => m.PlayerNickname)
+            .ToListAsync();
+
+        members = new List<MemberViewModel>();
+
+        foreach (var membership in membershipsData)
+        {
+            string? email = null;
+            if (!string.IsNullOrEmpty(membership.UserId))
+            {
+                var user = await DbContext.Users.FindAsync(membership.UserId);
+                email = user?.Email;
+            }
+
+            members.Add(new MemberViewModel
+            {
+                Id = membership.Id,
+                PlayerDisplayName = membership.PlayerDisplayName ?? membership.PlayerNickname,
+                Email = email,
+                Role = membership.Role,
+                JoinedDate = membership.JoinedDate,
+                IsRegistered = membership.IsRegistered
+            });
+        }
+    }
+
+    private async Task HandleUpdateLeague()
+    {
+        try
+        {
+            isSubmitting = true;
+            errorMessage = null;
+            successMessage = null;
+
+            var success = await LeagueService.UpdateLeagueAsync(LeagueId, userId!, editModel.Name!, editModel.Description);
+
+            if (success)
+            {
+                leagueEntity!.Name = editModel.Name!;
+                leagueEntity.Description = editModel.Description;
+                successMessage = "League updated successfully!";
+            }
+            else
+            {
+                errorMessage = "Failed to update league.";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error: {ex.Message}";
+        }
+        finally
+        {
+            isSubmitting = false;
+        }
+    }
+
+    private async Task HandleArchiveLeague()
+    {
+        try
+        {
+            isSubmitting = true;
+            errorMessage = null;
+            successMessage = null;
+            showArchiveConfirm = false;
+
+            var success = await LeagueService.ArchiveLeagueAsync(LeagueId, userId!);
+
+            if (success)
+            {
+                leagueEntity!.IsActive = false;
+                successMessage = "League archived successfully!";
+            }
+            else
+            {
+                errorMessage = "Failed to archive league.";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error: {ex.Message}";
+        }
+        finally
+        {
+            isSubmitting = false;
+        }
+    }
+
+    private async Task HandleUnarchiveLeague()
+    {
+        try
+        {
+            isSubmitting = true;
+            errorMessage = null;
+            successMessage = null;
+
+            var success = await LeagueService.UnarchiveLeagueAsync(LeagueId, userId!);
+
+            if (success)
+            {
+                leagueEntity!.IsActive = true;
+                successMessage = "League unarchived successfully!";
+            }
+            else
+            {
+                errorMessage = "Failed to unarchive league.";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error: {ex.Message}";
+        }
+        finally
+        {
+            isSubmitting = false;
+        }
+    }
+
+    private async Task HandleDeleteLeague()
+    {
+        try
+        {
+            isSubmitting = true;
+            errorMessage = null;
+
+            var success = await LeagueService.DeleteLeagueAsync(LeagueId, userId!);
+
+            if (success)
+            {
+                NavigationManager.NavigateTo("/leagues");
+            }
+            else
+            {
+                errorMessage = "Failed to delete league.";
+                showDeleteConfirm = false;
+                deleteConfirmText = string.Empty;
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error: {ex.Message}";
+            showDeleteConfirm = false;
+            deleteConfirmText = string.Empty;
+        }
+        finally
+        {
+            isSubmitting = false;
+        }
+    }
+
+    private async Task HandleAddMember()
+    {
+        try
+        {
+            isSubmitting = true;
+            errorMessage = null;
+            successMessage = null;
+
+            var displayName = string.IsNullOrWhiteSpace(addMemberDisplayName) ? null : addMemberDisplayName;
+            var success = await LeagueService.AddMemberAsync(LeagueId, userId!, addMemberEmail, displayName);
+
+            if (success)
+            {
+                successMessage = "Member added successfully!";
+                showAddMember = false;
+                addMemberEmail = string.Empty;
+                addMemberDisplayName = string.Empty;
+                await LoadMembersAsync();
+            }
+            else
+            {
+                errorMessage = "Failed to add member. User may not exist or is already a member.";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error: {ex.Message}";
+        }
+        finally
+        {
+            isSubmitting = false;
+        }
+    }
+
+    private async Task HandleLinkMember()
+    {
+        try
+        {
+            isSubmitting = true;
+            errorMessage = null;
+            successMessage = null;
+
+            var success = await LeagueService.LinkMemberAsync(LeagueId, userId!, linkMembershipId, linkMemberEmail);
+
+            if (success)
+            {
+                successMessage = $"Member {linkMemberName} successfully linked to user account!";
+                showLinkMember = false;
+                linkMemberEmail = string.Empty;
+                linkMemberName = string.Empty;
+                linkMembershipId = Guid.Empty;
+                await LoadMembersAsync();
+            }
+            else
+            {
+                errorMessage = "Failed to link member. User may not exist or is already a member.";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error: {ex.Message}";
+        }
+        finally
+        {
+            isSubmitting = false;
+        }
+    }
+
+    private async Task HandleChangeMember()
+    {
+        try
+        {
+            isSubmitting = true;
+            errorMessage = null;
+            successMessage = null;
+
+            var success = await LeagueService.UpdateMemberUserAsync(LeagueId, userId!, changeMembershipId, changeMemberEmail);
+
+            if (success)
+            {
+                successMessage = $"Member {changeMemberName} successfully changed to user {changeMemberEmail}!";
+                showChangeMember = false;
+                changeMemberEmail = string.Empty;
+                changeMemberName = string.Empty;
+                changeMemberCurrentEmail = string.Empty;
+                changeMembershipId = Guid.Empty;
+                await LoadMembersAsync();
+            }
+            else
+            {
+                errorMessage = "Failed to change member user. User may not exist or is already a member.";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error: {ex.Message}";
+        }
+        finally
+        {
+            isSubmitting = false;
+        }
+    }
+
+    private async Task PromoteToAdmin(Guid membershipId)
+    {
+        try
+        {
+            isSubmitting = true;
+            errorMessage = null;
+            successMessage = null;
+
+            var success = await LeagueService.UpdateMemberRoleAsync(LeagueId, userId!, membershipId, LeagueRole.Admin);
+
+            if (success)
+            {
+                successMessage = "Member promoted to admin!";
+                await LoadMembersAsync();
+            }
+            else
+            {
+                errorMessage = "Failed to promote member.";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error: {ex.Message}";
+        }
+        finally
+        {
+            isSubmitting = false;
+        }
+    }
+
+    private async Task DemoteToMember(Guid membershipId)
+    {
+        try
+        {
+            isSubmitting = true;
+            errorMessage = null;
+            successMessage = null;
+
+            var success = await LeagueService.UpdateMemberRoleAsync(LeagueId, userId!, membershipId, LeagueRole.Member);
+
+            if (success)
+            {
+                successMessage = "Admin demoted to member!";
+                await LoadMembersAsync();
+            }
+            else
+            {
+                errorMessage = "Failed to demote admin.";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error: {ex.Message}";
+        }
+        finally
+        {
+            isSubmitting = false;
+        }
+    }
+
+    private async Task RemoveMember(Guid membershipId, string memberName)
+    {
+        try
+        {
+            isSubmitting = true;
+            errorMessage = null;
+            successMessage = null;
+
+            var success = await LeagueService.RemoveMemberAsync(LeagueId, userId!, membershipId);
+
+            if (success)
+            {
+                successMessage = $"Member {memberName} removed!";
+                await LoadMembersAsync();
+            }
+            else
+            {
+                errorMessage = "Failed to remove member.";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error: {ex.Message}";
+        }
+        finally
+        {
+            isSubmitting = false;
+        }
+    }
+
+    private string GetRoleBadgeClass(LeagueRole role)
+    {
+        return role switch
+        {
+            LeagueRole.Owner => "bg-danger",
+            LeagueRole.Admin => "bg-warning text-dark",
+            LeagueRole.Member => "bg-secondary",
+            _ => "bg-secondary"
+        };
+    }
+
+    private class EditLeagueModel
+    {
+        [System.ComponentModel.DataAnnotations.Required]
+        [System.ComponentModel.DataAnnotations.StringLength(200)]
+        public string? Name { get; set; }
+
+        [System.ComponentModel.DataAnnotations.StringLength(1000)]
+        public string? Description { get; set; }
+    }
+
+    private class MemberViewModel
+    {
+        public Guid Id { get; set; }
+        public string PlayerDisplayName { get; set; } = string.Empty;
+        public string? Email { get; set; }
+        public LeagueRole Role { get; set; }
+        public DateTime JoinedDate { get; set; }
+        public bool IsRegistered { get; set; }
+    }
+}

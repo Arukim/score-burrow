@@ -3,15 +3,28 @@
 
 <PageTitle>Leagues</PageTitle>
 
+@using Microsoft.AspNetCore.Components.Authorization
 @using Microsoft.EntityFrameworkCore
 @using Microsoft.Extensions.Caching.Memory
 @using ScoreBurrow.Data
+@using ScoreBurrow.Web.Services
 @using LeagueEntity = ScoreBurrow.Data.Entities.League
 @inject ScoreBurrowDbContext DbContext
 @inject IMemoryCache MemoryCache
 @inject NavigationManager NavigationManager
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject ILeagueService LeagueService
 
-<h1>Leagues</h1>
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h1>Leagues</h1>
+    <AuthorizeView>
+        <Authorized>
+            <a href="/leagues/create" class="btn btn-primary">
+                <span class="oi oi-plus me-1"></span> Create New League
+            </a>
+        </Authorized>
+    </AuthorizeView>
+</div>
 
 <p>Browse all leagues and their competitions.</p>
 
@@ -107,15 +120,41 @@ else
 
     private async Task LoadLeaguesAsync()
     {
-        var cacheKey = $"leagues_page_{currentPage}";
+        // Get current user
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+        string? userId = null;
+        if (user.Identity?.IsAuthenticated ?? false)
+        {
+            userId = user.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        }
+
+        // Make cache key user-specific to include archived leagues for owners
+        var cacheKey = $"leagues_page_{currentPage}_{userId ?? "anonymous"}";
 
         if (!MemoryCache.TryGetValue(cacheKey, out List<LeagueListItem>? cachedLeagues))
         {
-            // Get total count for pagination
-            var totalCount = await DbContext.Leagues
+            // Build query for active leagues (visible to everyone)
+            var activeLeaguesQuery = DbContext.Leagues
                 .AsNoTracking()
-                .Where(l => l.IsActive)
-                .CountAsync();
+                .Where(l => l.IsActive);
+
+            // If user is authenticated, also include archived leagues they own
+            IQueryable<LeagueEntity> archivedOwnedQuery = null!;
+            if (!string.IsNullOrEmpty(userId))
+            {
+                archivedOwnedQuery = DbContext.Leagues
+                    .AsNoTracking()
+                    .Where(l => !l.IsActive && l.OwnerId == userId);
+            }
+
+            // Combine queries
+            var combinedQuery = string.IsNullOrEmpty(userId) 
+                ? activeLeaguesQuery 
+                : activeLeaguesQuery.Union(archivedOwnedQuery);
+
+            // Get total count for pagination
+            var totalCount = await combinedQuery.CountAsync();
 
             totalPages = (int)Math.Ceiling(totalCount / (double)PageSize);
 
@@ -127,10 +166,9 @@ else
             }
 
             // Fetch leagues for current page
-            var leaguesData = await DbContext.Leagues
-                .AsNoTracking()
-                .Where(l => l.IsActive)
-                .OrderByDescending(l => l.CreatedDate)
+            var leaguesData = await combinedQuery
+                .OrderByDescending(l => l.IsActive)
+                .ThenByDescending(l => l.CreatedDate)
                 .Skip((currentPage - 1) * PageSize)
                 .Take(PageSize)
                 .Select(l => new
@@ -148,7 +186,8 @@ else
                 Description = x.League.Description,
                 CreatedDate = x.League.CreatedDate,
                 MemberCount = x.MemberCount,
-                GameCount = x.GameCount
+                GameCount = x.GameCount,
+                IsActive = x.League.IsActive
             }).ToList();
 
             // Cache for 5 minutes with sliding expiration
@@ -169,5 +208,6 @@ else
         public DateTime CreatedDate { get; set; }
         public int MemberCount { get; set; }
         public int GameCount { get; set; }
+        public bool IsActive { get; set; }
     }
 }

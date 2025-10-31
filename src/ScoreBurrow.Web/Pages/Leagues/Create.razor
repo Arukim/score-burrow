@@ -1,0 +1,119 @@
+@page "/leagues/create"
+
+<PageTitle>Create League</PageTitle>
+
+@using Microsoft.AspNetCore.Components.Authorization
+@using ScoreBurrow.Web.Services
+@inject ILeagueService LeagueService
+@inject NavigationManager NavigationManager
+@inject AuthenticationStateProvider AuthenticationStateProvider
+
+<AuthorizeView>
+    <Authorized>
+        <h1>Create New League</h1>
+
+        @if (!string.IsNullOrEmpty(errorMessage))
+        {
+            <div class="alert alert-danger" role="alert">
+                @errorMessage
+            </div>
+        }
+
+        <div class="card">
+            <div class="card-body">
+                <EditForm Model="@model" OnValidSubmit="@HandleValidSubmit" Context="editContext">
+                    <DataAnnotationsValidator />
+                    <ValidationSummary />
+
+                    <div class="mb-3">
+                        <label for="name" class="form-label">League Name <span class="text-danger">*</span></label>
+                        <InputText id="name" class="form-control" @bind-Value="model.Name" placeholder="Enter league name" />
+                        <ValidationMessage For="@(() => model.Name)" />
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="description" class="form-label">Description</label>
+                        <InputTextArea id="description" class="form-control" @bind-Value="model.Description" rows="4" placeholder="Enter league description (optional)" />
+                        <ValidationMessage For="@(() => model.Description)" />
+                    </div>
+
+                    <div class="mb-3">
+                        <button type="submit" class="btn btn-primary" disabled="@isSubmitting">
+                            @if (isSubmitting)
+                            {
+                                <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                                <span>Creating...</span>
+                            }
+                            else
+                            {
+                                <span class="oi oi-plus me-2" aria-hidden="true"></span>
+                                <span>Create League</span>
+                            }
+                        </button>
+                        <a href="/leagues" class="btn btn-secondary ms-2">Cancel</a>
+                    </div>
+                </EditForm>
+            </div>
+        </div>
+    </Authorized>
+    <NotAuthorized>
+        <div class="alert alert-warning" role="alert">
+            You must be logged in to create a league.
+            <a href="/Account/Login?returnUrl=/leagues/create" class="alert-link">Login here</a>
+        </div>
+    </NotAuthorized>
+</AuthorizeView>
+
+@code {
+    private CreateLeagueModel model = new CreateLeagueModel();
+    private bool isSubmitting = false;
+    private string? errorMessage;
+
+    private async Task HandleValidSubmit()
+    {
+        try
+        {
+            isSubmitting = true;
+            errorMessage = null;
+
+            var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            var user = authState.User;
+
+            if (!user.Identity?.IsAuthenticated ?? true)
+            {
+                errorMessage = "You must be logged in to create a league.";
+                return;
+            }
+
+            var userId = user.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(userId))
+            {
+                errorMessage = "Unable to determine user identity.";
+                return;
+            }
+
+            var leagueId = await LeagueService.CreateLeagueAsync(userId, model.Name!, model.Description);
+
+            // Navigate to the new league
+            NavigationManager.NavigateTo($"/leagues/{leagueId}");
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"An error occurred while creating the league: {ex.Message}";
+        }
+        finally
+        {
+            isSubmitting = false;
+        }
+    }
+
+    private class CreateLeagueModel
+    {
+        [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "League name is required")]
+        [System.ComponentModel.DataAnnotations.StringLength(200, ErrorMessage = "League name must be less than 200 characters")]
+        public string? Name { get; set; }
+
+        [System.ComponentModel.DataAnnotations.StringLength(1000, ErrorMessage = "Description must be less than 1000 characters")]
+        public string? Description { get; set; }
+    }
+}

@@ -123,7 +123,7 @@ else
     <div class="row">
         <div class="col-12">
             <h2 class="mb-3">Recent Games</h2>
-            @if (!games.Any())
+            @if (games == null || !games.Any())
             {
                 <div class="alert alert-info">
                     <em>No games found in this league.</em>
@@ -372,7 +372,7 @@ else
             // Cache for 10 minutes with sliding expiration
             cachedLeagueData = new LeagueData
             {
-                League = league!,
+                League = league,
                 TopPlayers = topPlayers,
                 Games = games
             };
@@ -384,7 +384,7 @@ else
         }
         else
         {
-            league = cachedLeagueData.League;
+            league = cachedLeagueData!.League;
             topPlayers = cachedLeagueData.TopPlayers;
             games = cachedLeagueData.Games;
 

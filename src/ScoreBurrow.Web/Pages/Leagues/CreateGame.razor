@@ -138,59 +138,120 @@ else
         <div class="card">
             <div class="card-body">
                 <h3>Step 3: Town, Hero & Gold Trading</h3>
-                @for (int i = 0; i < playerAssignments.Count; i++)
-                {
-                    var assignment = playerAssignments[i];
-                    var index = i;
-                    <div class="card mb-3">
-                        <div class="card-header">
-                            <strong>Position @(i + 1): @assignment.PlayerName (@assignment.PlayerColor)</strong>
-                        </div>
-                        <div class="card-body">
-                            <div class="row">
-                                <div class="col-md-4">
-                                    <label class="form-label">Town</label>
-                                    <select class="form-select" @bind="assignment.TownId" @bind:after="@(() => OnTownChanged(index))">
-                                        <option value="0">Select Town...</option>
-                                        @foreach (var town in allTowns)
-                                        {
-                                            <option value="@town.Id">@town.Name</option>
-                                        }
-                                    </select>
+                <div class="row">
+                    <!-- Left Block: Assignment -->
+                    <div class="col-md-6">
+                        <h5>Assignment</h5>
+                        @for (int i = 0; i < playerAssignments.Count; i++)
+                        {
+                            var assignment = playerAssignments[i];
+                            var index = i;
+                            <div class="card mb-3">
+                                <div class="card-header">
+                                    <strong>@(i + 1). @assignment.PlayerName (@assignment.PlayerColor)</strong>
                                 </div>
-                                <div class="col-md-4">
-                                    <label class="form-label">Hero (Optional)</label>
-                                    <select class="form-select" @bind="assignment.HeroId">
-                                        <option value="">No Hero</option>
-                                        @if (assignment.AvailableHeroes != null)
-                                        {
-                                            @foreach (var hero in assignment.AvailableHeroes)
+                                <div class="card-body">
+                                    <div class="mb-2">
+                                        <label class="form-label">Town</label>
+                                        <select class="form-select" @bind="assignment.TownId" @bind:after="@(() => OnTownChanged(index))">
+                                            <option value="0">Select Town...</option>
+                                            @foreach (var town in allTowns)
                                             {
-                                                <option value="@hero.Id">@hero.Name</option>
+                                                <option value="@town.Id">@town.Name</option>
                                             }
-                                        }
-                                    </select>
-                                </div>
-                                <div class="col-md-4">
-                                    <label class="form-label">Bid Amount (Gold)</label>
-                                    <input type="number" class="form-control" @bind="assignment.BidAmount" @bind:after="RecalculateGold" />
+                                        </select>
+                                    </div>
+                                    <div class="mb-2">
+                                        <label class="form-label">Hero (Optional)</label>
+                                        <select class="form-select" @bind="assignment.HeroId">
+                                            <option value="">No Hero</option>
+                                            @if (assignment.AvailableHeroes != null)
+                                            {
+                                                @foreach (var hero in assignment.AvailableHeroes)
+                                                {
+                                                    <option value="@hero.Id">@hero.Name</option>
+                                                }
+                                            }
+                                        </select>
+                                    </div>
+                                    <div class="mb-2">
+                                        <label class="form-label">Gold</label>
+                                        <input type="number" class="form-control" @bind="assignment.NetGold" />
+                                    </div>
                                 </div>
                             </div>
-                            <div class="mt-2">
-                                <strong>Current Gold: </strong>
-                                <span class="@(assignment.NetGold >= 0 ? "text-success" : "text-danger")">
-                                    @assignment.NetGold
-                                </span>
-                            </div>
-                        </div>
+                        }
                     </div>
-                }
-                <button class="btn btn-secondary me-2" @onclick="PreviousStep">
-                    <span class="oi oi-chevron-left"></span> Back
-                </button>
-                <button class="btn btn-primary" @onclick="NextStep" disabled="@(!CanProceedFromStep3())">
-                    Next <span class="oi oi-chevron-right"></span>
-                </button>
+
+                    <!-- Right Block: Calculator -->
+                    <div class="col-md-6">
+                        <h5>Gold Calculator</h5>
+                        @for (int i = 0; i < playerAssignments.Count; i++)
+                        {
+                            var assignment = playerAssignments[i];
+                            var index = i;
+                            var isLastRow = i == playerAssignments.Count - 1;
+                            <div class="card mb-3">
+                                <div class="card-header">
+                                    <strong>@(i + 1).</strong>
+                                </div>
+                                <div class="card-body">
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <label class="form-label">Player</label>
+                                            <select class="form-select" @bind="assignment.CalculatorPlayerId" @bind:after="CalculateGoldDistribution">
+                                                <option value="">Select...</option>
+                                                @foreach (var pa in playerAssignments)
+                                                {
+                                                    <option value="@pa.MembershipId">@pa.PlayerName</option>
+                                                }
+                                            </select>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label">Stake</label>
+                                            @if (isLastRow)
+                                            {
+                                                <input type="text" class="form-control" value="N/A" readonly />
+                                            }
+                                            else
+                                            {
+                                                <input type="number" class="form-control" @bind="assignment.CalculatorStake" @bind:after="CalculateGoldDistribution" />
+                                            }
+                                        </div>
+                                    </div>
+                                    <div class="mt-2">
+                                        <strong>Distribution: </strong>
+                                        <span class="@(assignment.CalculatedGold >= 0 ? "text-success" : "text-danger")">
+                                            @(assignment.CalculatedGold >= 0 ? "+" : "")@assignment.CalculatedGold
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                        }
+                        <div class="alert alert-info">
+                            <strong>Total: @CalculatorTotal</strong>
+                            @if (Math.Abs(CalculatorTotal) <= 1)
+                            {
+                                <span class="text-success ms-2">✓</span>
+                            }
+                            else
+                            {
+                                <span class="text-danger ms-2">⚠ Total should be 0 or ±1</span>
+                            }
+                        </div>
+                        <button class="btn btn-success w-100" @onclick="CopyCalculatorToAssignments">
+                            <span class="oi oi-copywriting"></span> Copy to Assignments
+                        </button>
+                    </div>
+                </div>
+                <div class="mt-3">
+                    <button class="btn btn-secondary me-2" @onclick="PreviousStep">
+                        <span class="oi oi-chevron-left"></span> Back
+                    </button>
+                    <button class="btn btn-primary" @onclick="NextStep" disabled="@(!CanProceedFromStep3())">
+                        Next <span class="oi oi-chevron-right"></span>
+                    </button>
+                </div>
             </div>
         </div>
     }
@@ -492,5 +553,78 @@ else
         public string TownName { get; set; } = "";
         public string? HeroName { get; set; }
         public List<Hero>? AvailableHeroes { get; set; }
+        
+        // Calculator properties
+        public Guid? CalculatorPlayerId { get; set; }
+        public int CalculatorStake { get; set; }
+        public int CalculatedGold { get; set; }
+    }
+
+    private int CalculatorTotal => playerAssignments.Sum(p => p.CalculatedGold);
+
+    private void CalculateGoldDistribution()
+    {
+        // Reset all calculated gold values
+        foreach (var assignment in playerAssignments)
+        {
+            assignment.CalculatedGold = 0;
+        }
+
+        // Calculate distribution for each row
+        for (int i = 0; i < playerAssignments.Count; i++)
+        {
+            var currentRow = playerAssignments[i];
+            
+            // Skip if no player selected
+            if (!currentRow.CalculatorPlayerId.HasValue || currentRow.CalculatorPlayerId == Guid.Empty)
+            {
+                continue;
+            }
+
+            var stake = currentRow.CalculatorStake;
+            
+            // Find the player who made the stake and deduct it
+            var stakingPlayer = playerAssignments.FirstOrDefault(p => p.MembershipId == currentRow.CalculatorPlayerId.Value);
+            if (stakingPlayer != null)
+            {
+                stakingPlayer.CalculatedGold -= stake;
+
+                // Distribute stake equally to all players in rows below this one
+                var remainingRows = playerAssignments.Count - i - 1;
+                if (remainingRows > 0 && stake > 0)
+                {
+                    var sharePerRow = stake / remainingRows;
+                    var remainder = stake % remainingRows;
+
+                    for (int j = i + 1; j < playerAssignments.Count; j++)
+                    {
+                        var rowBelow = playerAssignments[j];
+                        // Only distribute if there's a player assigned to this row
+                        if (rowBelow.CalculatorPlayerId.HasValue && rowBelow.CalculatorPlayerId != Guid.Empty)
+                        {
+                            var playerToReceive = playerAssignments.FirstOrDefault(p => p.MembershipId == rowBelow.CalculatorPlayerId.Value);
+                            if (playerToReceive != null)
+                            {
+                                playerToReceive.CalculatedGold += sharePerRow;
+                                // Distribute remainder to first few rows
+                                if (remainder > 0)
+                                {
+                                    playerToReceive.CalculatedGold += 1;
+                                    remainder--;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private void CopyCalculatorToAssignments()
+    {
+        foreach (var assignment in playerAssignments)
+        {
+            assignment.NetGold = assignment.CalculatedGold;
+        }
     }
 }

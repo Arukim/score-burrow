@@ -118,6 +118,9 @@ else
                                             <option value="@color">@color.ToString()</option>
                                         }
                                     </select>
+                                    <div class="mt-1">
+                                        <PlayerColorBadge PlayerColor="@assignment.PlayerColor" />
+                                    </div>
                                 </td>
                                 <td>@(i + 1)</td>
                             </tr>
@@ -276,13 +279,14 @@ else
                         </tr>
                     </thead>
                     <tbody>
-                        @for (int i = 0; i < playerAssignments.Count; i++)
+                        @{ var orderedAssignments = playerAssignments.OrderBy(p => p.PlayerColor).ToList(); }
+                        @for (int i = 0; i < orderedAssignments.Count; i++)
                         {
-                            var assignment = playerAssignments[i];
+                            var assignment = orderedAssignments[i];
                             <tr>
                                 <td>@(i + 1)</td>
                                 <td>@assignment.PlayerName</td>
-                                <td><span class="badge bg-info">@assignment.PlayerColor</span></td>
+                                <td><PlayerColorBadge PlayerColor="@assignment.PlayerColor" /></td>
                                 <td>@assignment.TownName</td>
                                 <td>@(assignment.HeroName ?? "None")</td>
                                 <td class="@(assignment.NetGold >= 0 ? "text-success" : "text-danger")">

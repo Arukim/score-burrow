@@ -1,0 +1,28 @@
+@using ScoreBurrow.Data.Enums
+
+<span class="badge" style="background-color: @GetColorHex(playerColor); color: white;">
+    @playerColor.ToString()
+</span>
+
+@code {
+    [Parameter]
+    public PlayerColor PlayerColor { get; set; }
+
+    private PlayerColor playerColor => PlayerColor;
+
+    private string GetColorHex(PlayerColor color)
+    {
+        return color switch
+        {
+            PlayerColor.Red => "#DC143C",     // Crimson
+            PlayerColor.Blue => "#1E90FF",    // Dodger Blue
+            PlayerColor.Tan => "#D2B48C",     // Tan
+            PlayerColor.Green => "#32CD32",   // Lime Green
+            PlayerColor.Orange => "#FF8C00",  // Dark Orange
+            PlayerColor.Purple => "#9370DB",  // Medium Purple
+            PlayerColor.Teal => "#008B8B",    // Dark Cyan
+            PlayerColor.Pink => "#FF69B4",    // Hot Pink
+            _ => "#6c757d"                    // Gray for unknown
+        };
+    }
+}

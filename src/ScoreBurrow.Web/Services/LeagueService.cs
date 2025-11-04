@@ -276,6 +276,54 @@ public class LeagueService : ILeagueService
         return true;
     }
 
+    public async Task<bool> AddUnregisteredMemberAsync(Guid leagueId, string userId, string playerNickname, string? playerDisplayName = null)
+    {
+        if (!await IsAdminOrOwnerAsync(userId, leagueId))
+        {
+            _logger.LogWarning("User {UserId} attempted to add unregistered member to league {LeagueId} without admin permission", userId, leagueId);
+            return false;
+        }
+
+        var league = await _dbContext.Leagues.FindAsync(leagueId);
+        if (league == null)
+        {
+            return false;
+        }
+
+        // Check if nickname is already taken in this league
+        var existingMembership = await _dbContext.LeagueMemberships
+            .FirstOrDefaultAsync(m => m.LeagueId == leagueId && m.PlayerNickname == playerNickname);
+
+        if (existingMembership != null)
+        {
+            _logger.LogWarning("Nickname {Nickname} is already taken in league {LeagueId}", playerNickname, leagueId);
+            return false;
+        }
+
+        var user = await _userManager.FindByIdAsync(userId);
+        var membership = new LeagueMembership
+        {
+            Id = Guid.NewGuid(),
+            LeagueId = leagueId,
+            UserId = null, // Unregistered player
+            PlayerNickname = playerNickname,
+            PlayerDisplayName = playerDisplayName,
+            Role = LeagueRole.Member,
+            JoinedDate = DateTime.UtcNow,
+            CreatedBy = user?.UserName ?? userId,
+            CreatedOn = DateTime.UtcNow
+        };
+
+        _dbContext.LeagueMemberships.Add(membership);
+        await _dbContext.SaveChangesAsync();
+
+        InvalidateLeagueCache(leagueId);
+
+        _logger.LogInformation("Unregistered player {Nickname} added to league {LeagueId} by {UserId}", playerNickname, leagueId, userId);
+
+        return true;
+    }
+
     public async Task<bool> LinkMemberAsync(Guid leagueId, string userId, Guid membershipId, string memberEmail)
     {
         if (!await IsAdminOrOwnerAsync(userId, leagueId))

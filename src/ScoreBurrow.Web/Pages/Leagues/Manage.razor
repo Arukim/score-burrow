@@ -142,9 +142,14 @@
                             <div class="card mb-3">
                                 <div class="card-header d-flex justify-content-between align-items-center">
                                     <h5 class="mb-0">League Members (@members.Count)</h5>
-                                    <button class="btn btn-sm btn-primary" @onclick="@(() => showAddMember = true)">
-                                        <span class="oi oi-plus me-1"></span> Add Member
-                                    </button>
+                                    <div class="btn-group">
+                                        <button class="btn btn-sm btn-primary" @onclick="@(() => showAddMember = true)">
+                                            <span class="oi oi-plus me-1"></span> Add Registered Member
+                                        </button>
+                                        <button class="btn btn-sm btn-outline-primary" @onclick="@(() => showAddUnregisteredMember = true)">
+                                            <span class="oi oi-plus me-1"></span> Add Unregistered Player
+                                        </button>
+                                    </div>
                                 </div>
                                 <div class="card-body">
                                     @if (!members.Any())
@@ -250,6 +255,37 @@
                                 <button type="button" class="btn btn-secondary" @onclick="@(() => { showAddMember = false; addMemberEmail = string.Empty; addMemberDisplayName = string.Empty; })">Cancel</button>
                                 <button type="button" class="btn btn-primary" @onclick="@HandleAddMember" disabled="@(isSubmitting || string.IsNullOrWhiteSpace(addMemberEmail))">
                                     <span class="oi oi-plus me-1"></span> Add Member
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            }
+
+            <!-- Add Unregistered Member Modal -->
+            @if (showAddUnregisteredMember)
+            {
+                <div class="modal show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+                    <div class="modal-dialog">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title">Add Unregistered Player</h5>
+                                <button type="button" class="btn-close" @onclick="@(() => { showAddUnregisteredMember = false; addUnregisteredPlayerDisplayName = string.Empty; })"></button>
+                            </div>
+                            <div class="modal-body">
+                                <div class="mb-3">
+                                    <label for="playerDisplayName" class="form-label">Player Name <span class="text-danger">*</span></label>
+                                    <input type="text" class="form-control" id="playerDisplayName" @bind="addUnregisteredPlayerDisplayName" placeholder="Enter player name" />
+                                    <div class="form-text">This name must be unique within the league.</div>
+                                </div>
+                                <div class="alert alert-info">
+                                    <small><strong>Note:</strong> This player can be linked to a registered user later.</small>
+                                </div>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" @onclick="@(() => { showAddUnregisteredMember = false; addUnregisteredPlayerDisplayName = string.Empty; })">Cancel</button>
+                                <button type="button" class="btn btn-primary" @onclick="@HandleAddUnregisteredMember" disabled="@(isSubmitting || string.IsNullOrWhiteSpace(addUnregisteredPlayerDisplayName))">
+                                    <span class="oi oi-plus me-1"></span> Add Player
                                 </button>
                             </div>
                         </div>
@@ -400,12 +436,14 @@
     private string? errorMessage;
     private string activeTab = "settings";
     private bool showAddMember = false;
+    private bool showAddUnregisteredMember = false;
     private bool showLinkMember = false;
     private bool showChangeMember = false;
     private bool showArchiveConfirm = false;
     private bool showDeleteConfirm = false;
     private string addMemberEmail = string.Empty;
     private string addMemberDisplayName = string.Empty;
+    private string addUnregisteredPlayerDisplayName = string.Empty;
     private string linkMemberEmail = string.Empty;
     private string linkMemberName = string.Empty;
     private Guid linkMembershipId = Guid.Empty;
@@ -643,6 +681,39 @@
             else
             {
                 errorMessage = "Failed to add member. User may not exist or is already a member.";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error: {ex.Message}";
+        }
+        finally
+        {
+            isSubmitting = false;
+        }
+    }
+
+    private async Task HandleAddUnregisteredMember()
+    {
+        try
+        {
+            isSubmitting = true;
+            errorMessage = null;
+            successMessage = null;
+
+            // Use the display name as both nickname and display name
+            var success = await LeagueService.AddUnregisteredMemberAsync(LeagueId, userId!, addUnregisteredPlayerDisplayName, addUnregisteredPlayerDisplayName);
+
+            if (success)
+            {
+                successMessage = "Unregistered player added successfully!";
+                showAddUnregisteredMember = false;
+                addUnregisteredPlayerDisplayName = string.Empty;
+                await LoadMembersAsync();
+            }
+            else
+            {
+                errorMessage = "Failed to add player. Name may already be taken.";
             }
         }
         catch (Exception ex)

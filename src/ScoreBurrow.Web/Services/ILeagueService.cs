@@ -35,6 +35,11 @@ public interface ILeagueService
     Task<bool> AddMemberAsync(Guid leagueId, string userId, string memberEmail, string? displayName = null);
 
     /// <summary>
+    /// Adds an unregistered player as a member of the league. Requires owner or admin role.
+    /// </summary>
+    Task<bool> AddUnregisteredMemberAsync(Guid leagueId, string userId, string playerNickname, string? playerDisplayName = null);
+
+    /// <summary>
     /// Links an existing unregistered membership to a registered user. Requires owner or admin role.
     /// </summary>
     Task<bool> LinkMemberAsync(Guid leagueId, string userId, Guid membershipId, string memberEmail);

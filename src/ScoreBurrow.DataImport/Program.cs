@@ -4,21 +4,46 @@ using Microsoft.Extensions.Configuration;
 using ScoreBurrow.Data;
 using ScoreBurrow.DataImport.Models;
 using ScoreBurrow.DataImport.Services;
+using System.Text.RegularExpressions;
 
 namespace ScoreBurrow.DataImport;
 
 class Program
 {
+    static void ExtractHeroes()
+    {
+        string content = File.ReadAllText("heroes.txt");
+        var trPattern = new Regex(@"<tr[^>]*>(.*?)</tr>", RegexOptions.Singleline);
+        var trs = trPattern.Matches(content);
+
+        using (var writer = new StreamWriter("heroes.csv"))
+        {
+            writer.WriteLine("Hero Name,Hero Class");
+            foreach (Match tr in trs)
+            {
+                string row = tr.Groups[1].Value;
+                // Extract name
+                var nameMatch = Regex.Match(row, @"<a href=""/wiki/[^""]*"" title=""[^""]*"">\s*([^<]*)\s*</a>");
+                string name = nameMatch.Success ? nameMatch.Groups[1].Value.Trim() : "";
+                // Extract class
+                var classMatch = Regex.Match(row, @"<td style=""padding-right:5px"">&nbsp;.*?<a href=""/wiki/[^""]*"" title=""[^""]*"">\s*([^<]*)\s*</a>", RegexOptions.Singleline);
+                string className = classMatch.Success ? classMatch.Groups[1].Value.Trim() : "";
+
+                if (!string.IsNullOrEmpty(name) && !string.IsNullOrEmpty(className))
+                {
+                    writer.WriteLine($"{name},{className}");
+                }
+            }
+        }
+        Console.WriteLine("Hero extraction complete. Output saved to heroes.csv");
+    }
     static async Task<int> Main(string[] args)
     {
         var rootCommand = new RootCommand("Import historical game data from CSV into ScoreBurrow database");
 
         var csvOption = new Option<string>(
             name: "--csv",
-            description: "Path to CSV file containing historical game data")
-        {
-            IsRequired = true
-        };
+            description: "Path to CSV file containing historical game data");
 
         var leagueIdOption = new Option<Guid?>(
             name: "--league-id",
@@ -37,16 +62,29 @@ class Program
             description: "Preview import without making database changes",
             getDefaultValue: () => false);
 
+        var extractHeroesOption = new Option<bool>(
+            name: "--extract-heroes",
+            description: "Extract hero data from heroes.txt to heroes.csv",
+            getDefaultValue: () => false);
+
         rootCommand.AddOption(csvOption);
         rootCommand.AddOption(leagueIdOption);
         rootCommand.AddOption(leagueNameOption);
         rootCommand.AddOption(ownerIdOption);
         rootCommand.AddOption(dryRunOption);
+        rootCommand.AddOption(extractHeroesOption);
 
-        rootCommand.SetHandler(async (string csvPath, Guid? leagueId, string? leagueName, Guid? ownerId, bool dryRun) =>
+        rootCommand.SetHandler(async (string csvPath, Guid? leagueId, string? leagueName, Guid? ownerId, bool dryRun, bool extractHeroes) =>
         {
             try
             {
+                if (extractHeroes)
+                {
+                    // Extract heroes logic
+                    ExtractHeroes();
+                    return;
+                }
+
                 // Validate inputs
                 if (!leagueId.HasValue && string.IsNullOrWhiteSpace(leagueName))
                 {
@@ -119,7 +157,7 @@ class Program
                 }
                 Environment.Exit(1);
             }
-        }, csvOption, leagueIdOption, leagueNameOption, ownerIdOption, dryRunOption);
+        }, csvOption, leagueIdOption, leagueNameOption, ownerIdOption, dryRunOption, extractHeroesOption);
 
         return await rootCommand.InvokeAsync(args);
     }

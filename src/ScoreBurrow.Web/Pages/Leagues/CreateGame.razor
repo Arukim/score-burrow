@@ -401,8 +401,9 @@ else
     {
         if (currentStep == 1 && CanProceedFromStep1())
         {
-            // Initialize player assignments
-            playerAssignments = selectedMembers.Select((memberId, index) =>
+            // Initialize player assignments with shuffled players
+            var shuffledMembers = selectedMembers.OrderBy(x => Guid.NewGuid()).ToList();
+            playerAssignments = shuffledMembers.Select((memberId, index) =>
             {
                 var member = availableMembers.First(m => m.Id == memberId);
                 return new PlayerAssignment
@@ -470,6 +471,7 @@ else
         {
             assignment.AvailableHeroes = allHeroes
                 .Where(h => h.TownId == assignment.TownId)
+                .OrderBy(h => h.Name)
                 .ToList();
             assignment.HeroId = null;
         }

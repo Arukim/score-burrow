@@ -88,7 +88,7 @@ else
                     </tr>
                 </thead>
                 <tbody>
-                    @foreach (var participant in game.Participants.OrderBy(p => p.Position))
+                    @foreach (var participant in game.Participants.OrderBy(p => p.PlayerColor))
                     {
                         <tr class="@(participant.IsWinner ? "table-success" : "")">
                             <td>
@@ -103,7 +103,7 @@ else
                             <td>@participant.Position@(GetOrdinalSuffix(participant.Position))</td>
                             <td>@participant.Town?.Name</td>
                             <td>@participant.Hero?.Name</td>
-                            <td><span class="badge bg-info">@participant.PlayerColor.ToString()</span></td>
+                            <td><PlayerColorBadge PlayerColor="@participant.PlayerColor" /></td>
                             <td class="@(participant.GoldTrade != 0 ? "text-primary" : "")">
                                 @(participant.GoldTrade > 0 ? "+" : "")@participant.GoldTrade
                             </td>

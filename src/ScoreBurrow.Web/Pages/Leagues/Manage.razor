@@ -100,6 +100,25 @@
                             {
                                 <div class="card mb-3">
                                     <div class="card-header">
+                                        <h5 class="mb-0">Sample Data</h5>
+                                    </div>
+                                    <div class="card-body">
+                                        @if (members.Count == 1 && !hasGames)
+                                        {
+                                            <p>Populate this empty league with 8 sample players and 1000 simulated games spanning the past 12 months.</p>
+                                            <button class="btn btn-success" @onclick="@(() => showGenerateSampleData = true)" disabled="@isSubmitting">
+                                                <span class="oi oi-data-transfer-download me-1"></span> Generate Sample Data
+                                            </button>
+                                        }
+                                        else
+                                        {
+                                            <p class="text-muted">Sample data can only be generated for empty leagues with only the owner as a member.</p>
+                                        }
+                                    </div>
+                                </div>
+
+                                <div class="card mb-3">
+                                    <div class="card-header">
                                         <h5 class="mb-0">Archive League</h5>
                                     </div>
                                     <div class="card-body">
@@ -117,6 +136,18 @@
                                                 <span class="oi oi-action-undo me-1"></span> Unarchive League
                                             </button>
                                         }
+                                    </div>
+                                </div>
+
+                                <div class="card border-warning mb-3">
+                                    <div class="card-header bg-warning text-dark">
+                                        <h5 class="mb-0">Reset League Data</h5>
+                                    </div>
+                                    <div class="card-body">
+                                        <p>Remove all games, participants, and statistics. This will delete all members except you and reset all data to start fresh. Useful for testing.</p>
+                                        <button class="btn btn-warning" @onclick="@(() => showWipeConfirm = true)">
+                                            <span class="oi oi-trash me-1"></span> Wipe All Data
+                                        </button>
                                     </div>
                                 </div>
 
@@ -410,6 +441,73 @@
                     </div>
                 </div>
             }
+
+            <!-- Generate Sample Data Confirmation Modal -->
+            @if (showGenerateSampleData)
+            {
+                <div class="modal show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+                    <div class="modal-dialog">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title">Generate Sample Data</h5>
+                                <button type="button" class="btn-close" @onclick="@(() => showGenerateSampleData = false)"></button>
+                            </div>
+                            <div class="modal-body">
+                                <p>This will populate the league with:</p>
+                                <ul>
+                                    <li>8 sample players with varying skill levels</li>
+                                    <li>1000 simulated games over the past 12 months</li>
+                                    <li>Complete rating history and statistics</li>
+                                </ul>
+                                <p class="text-info"><strong>Note:</strong> This process may take a minute to complete.</p>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" @onclick="@(() => showGenerateSampleData = false)">Cancel</button>
+                                <button type="button" class="btn btn-success" @onclick="@HandleGenerateSampleData" disabled="@isSubmitting">
+                                    @if (isSubmitting)
+                                    {
+                                        <span class="spinner-border spinner-border-sm me-2"></span>
+                                    }
+                                    <span class="oi oi-data-transfer-download me-1"></span> Generate
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            }
+
+            <!-- Wipe League Data Confirmation Modal -->
+            @if (showWipeConfirm)
+            {
+                <div class="modal show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+                    <div class="modal-dialog">
+                        <div class="modal-content">
+                            <div class="modal-header bg-warning text-dark">
+                                <h5 class="modal-title">Wipe League Data</h5>
+                                <button type="button" class="btn-close" @onclick="@(() => showWipeConfirm = false)"></button>
+                            </div>
+                            <div class="modal-body">
+                                <p><strong>This will remove:</strong></p>
+                                <ul>
+                                    <li>All games and game participants</li>
+                                    <li>All rating history</li>
+                                    <li>All player statistics</li>
+                                    <li>All members except you (the owner)</li>
+                                </ul>
+                                <p>Your ratings will be reset to default.</p>
+                                <p>Type <strong>WIPE</strong> to confirm:</p>
+                                <input type="text" class="form-control" @bind="wipeConfirmText" placeholder="Type WIPE" />
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" @onclick="@(() => { showWipeConfirm = false; wipeConfirmText = string.Empty; })">Cancel</button>
+                                <button type="button" class="btn btn-warning" @onclick="@HandleWipeLeagueData" disabled="@(wipeConfirmText != "WIPE")">
+                                    <span class="oi oi-trash me-1"></span> Wipe Data
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            }
         }
     </Authorized>
     <NotAuthorized>
@@ -452,6 +550,10 @@
     private string changeMemberCurrentEmail = string.Empty;
     private Guid changeMembershipId = Guid.Empty;
     private string deleteConfirmText = string.Empty;
+    private bool showGenerateSampleData = false;
+    private bool showWipeConfirm = false;
+    private string wipeConfirmText = string.Empty;
+    private bool hasGames = false;
 
     protected override async Task OnInitializedAsync()
     {
@@ -501,6 +603,9 @@
 
         // Load members
         await LoadMembersAsync();
+
+        // Check if league has games
+        hasGames = await DbContext.Games.AnyAsync(g => g.LeagueId == LeagueId);
     }
 
     private async Task LoadMembersAsync()
@@ -873,6 +978,69 @@
             else
             {
                 errorMessage = "Failed to remove member.";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error: {ex.Message}";
+        }
+        finally
+        {
+            isSubmitting = false;
+        }
+    }
+
+    private async Task HandleGenerateSampleData()
+    {
+        try
+        {
+            isSubmitting = true;
+            errorMessage = null;
+            successMessage = null;
+            showGenerateSampleData = false;
+
+            var success = await LeagueService.PopulateSampleDataAsync(LeagueId, userId!);
+
+            if (success)
+            {
+                successMessage = "Successfully created 8 players and simulated 1000 games!";
+                await LoadDataAsync();
+            }
+            else
+            {
+                errorMessage = "Failed to generate sample data. League may not be empty or you may not have permission.";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error: {ex.Message}";
+        }
+        finally
+        {
+            isSubmitting = false;
+        }
+    }
+
+    private async Task HandleWipeLeagueData()
+    {
+        try
+        {
+            isSubmitting = true;
+            errorMessage = null;
+            successMessage = null;
+            showWipeConfirm = false;
+            wipeConfirmText = string.Empty;
+
+            var success = await LeagueService.WipeLeagueDataAsync(LeagueId, userId!);
+
+            if (success)
+            {
+                successMessage = "League data wiped successfully. You can now generate sample data again.";
+                await LoadDataAsync();
+            }
+            else
+            {
+                errorMessage = "Failed to wipe league data.";
             }
         }
         catch (Exception ex)

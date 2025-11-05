@@ -538,6 +538,374 @@ public class LeagueService : ILeagueService
             .AnyAsync(m => m.LeagueId == leagueId && m.UserId == userId);
     }
 
+    public async Task<bool> PopulateSampleDataAsync(Guid leagueId, string userId)
+    {
+        if (!await IsOwnerAsync(userId, leagueId))
+        {
+            _logger.LogWarning("User {UserId} attempted to populate sample data for league {LeagueId} without owner permission", userId, leagueId);
+            return false;
+        }
+
+        var league = await _dbContext.Leagues.FindAsync(leagueId);
+        if (league == null)
+        {
+            return false;
+        }
+
+        // Verify league has only 1 member (the owner) and no games
+        var memberCount = await _dbContext.LeagueMemberships.CountAsync(m => m.LeagueId == leagueId);
+        var existingGameCount = await _dbContext.Games.CountAsync(g => g.LeagueId == leagueId);
+
+        if (memberCount != 1 || existingGameCount != 0)
+        {
+            _logger.LogWarning("Cannot populate sample data for league {LeagueId}: has {MemberCount} members and {GameCount} games", leagueId, memberCount, existingGameCount);
+            return false;
+        }
+
+        using var transaction = await _dbContext.Database.BeginTransactionAsync();
+        try
+        {
+            var user = await _userManager.FindByIdAsync(userId);
+            var auditUser = user?.UserName ?? userId;
+
+            // Get available towns and heroes for random selection
+            var towns = await _dbContext.Towns.ToListAsync();
+            var heroes = await _dbContext.Heroes.ToListAsync();
+
+            if (!towns.Any())
+            {
+                _logger.LogError("Cannot populate sample data: no towns found in database");
+                return false;
+            }
+
+            var random = new Random();
+
+            // Create 8 sample players with skill tiers
+            var samplePlayers = new[]
+            {
+                new { Name = "Strategus the Wise", Skill = "Wise", WinWeight = 80 },
+                new { Name = "Sage Tactician", Skill = "Wise", WinWeight = 80 },
+                new { Name = "Steadfast Average", Skill = "Average", WinWeight = 50 },
+                new { Name = "Balanced Fighter", Skill = "Average", WinWeight = 50 },
+                new { Name = "Reliable Combatant", Skill = "Average", WinWeight = 50 },
+                new { Name = "Standard Warrior", Skill = "Average", WinWeight = 50 },
+                new { Name = "Clumsy Novice", Skill = "Dummy", WinWeight = 20 },
+                new { Name = "Bumbling Rookie", Skill = "Dummy", WinWeight = 20 }
+            };
+
+            var memberships = new List<(LeagueMembership membership, int winWeight)>();
+
+            foreach (var player in samplePlayers)
+            {
+                var membership = new LeagueMembership
+                {
+                    Id = Guid.NewGuid(),
+                    LeagueId = leagueId,
+                    UserId = null, // Unregistered player
+                    PlayerNickname = player.Name,
+                    PlayerDisplayName = player.Name,
+                    Role = LeagueRole.Member,
+                    JoinedDate = DateTime.UtcNow,
+                    Glicko2Rating = ScoreBurrow.Rating.Core.Glicko2Constants.DefaultRating,
+                    Glicko2RatingDeviation = ScoreBurrow.Rating.Core.Glicko2Constants.DefaultRatingDeviation,
+                    Glicko2Volatility = ScoreBurrow.Rating.Core.Glicko2Constants.DefaultVolatility,
+                    CreatedBy = auditUser,
+                    CreatedOn = DateTime.UtcNow
+                };
+
+                _dbContext.LeagueMemberships.Add(membership);
+                memberships.Add((membership, player.WinWeight));
+            }
+
+            await _dbContext.SaveChangesAsync();
+
+            // Predefined map names
+            var mapNames = new[]
+            {
+                "Emerald Valley", "Dragon's Peak", "Frozen Wasteland", "Shadow Realm",
+                "Golden Plains", "Crystal Caverns", "Mystic Isles", "Crimson Highlands",
+                "Forgotten Ruins", "Silvermoon Bay"
+            };
+
+            // Generate 1000 games over 12 months
+            const int gameCount = 1000;
+            var startDate = DateTime.UtcNow.AddMonths(-12);
+            var timeIncrement = TimeSpan.FromDays(365.0 / gameCount);
+
+            for (int i = 0; i < gameCount; i++)
+            {
+                // Calculate game start time
+                var gameStartTime = startDate.Add(timeIncrement * i);
+                var gameDuration = TimeSpan.FromHours(random.Next(2, 5));
+                var gameEndTime = gameStartTime.Add(gameDuration);
+
+                // Select 4 random participants
+                var participants = memberships.OrderBy(_ => random.Next()).Take(4).ToList();
+
+                // Create game
+                var game = new Game
+                {
+                    Id = Guid.NewGuid(),
+                    LeagueId = leagueId,
+                    MapName = mapNames[random.Next(mapNames.Length)],
+                    StartTime = gameStartTime,
+                    EndTime = gameEndTime,
+                    Status = GameStatus.Completed,
+                    CreatedBy = auditUser,
+                    CreatedOn = DateTime.UtcNow
+                };
+
+                _dbContext.Games.Add(game);
+
+                // Select winner based on skill weights
+                var totalWeight = participants.Sum(p => p.winWeight);
+                var randomValue = random.Next(totalWeight);
+                var cumulativeWeight = 0;
+                var winnerIndex = 0;
+
+                for (int j = 0; j < participants.Count; j++)
+                {
+                    cumulativeWeight += participants[j].winWeight;
+                    if (randomValue < cumulativeWeight)
+                    {
+                        winnerIndex = j;
+                        break;
+                    }
+                }
+
+                var winnerId = participants[winnerIndex].membership.Id;
+
+                // Create game participants with rating snapshots
+                var gameParticipants = new List<GameParticipant>();
+                for (int j = 0; j < participants.Count; j++)
+                {
+                    var (membership, _) = participants[j];
+                    var goldTrade = random.Next(-20, 21) * 500; // -10000 to +10000 in 500g increments
+
+                    var participant = new GameParticipant
+                    {
+                        Id = Guid.NewGuid(),
+                        GameId = game.Id,
+                        LeagueMembershipId = membership.Id,
+                        TownId = towns[random.Next(towns.Count)].Id,
+                        HeroId = heroes.Any() ? (int?)heroes[random.Next(heroes.Count)].Id : null,
+                        PlayerColor = (PlayerColor)j,
+                        Position = j + 1,
+                        GoldTrade = goldTrade,
+                        IsWinner = membership.Id == winnerId,
+                        IsTechnicalLoss = false,
+                        RatingAtGameTime = membership.Glicko2Rating,
+                        RatingDeviationAtGameTime = membership.Glicko2RatingDeviation,
+                        VolatilityAtGameTime = membership.Glicko2Volatility,
+                        CreatedBy = auditUser,
+                        CreatedOn = DateTime.UtcNow
+                    };
+
+                    _dbContext.GameParticipants.Add(participant);
+                    gameParticipants.Add(participant);
+                }
+
+                game.WinnerId = winnerId;
+
+                await _dbContext.SaveChangesAsync();
+
+                // Calculate new ratings using rating service
+                var ratingService = new ScoreBurrow.Rating.Services.RatingService();
+                var participantRatings = new Dictionary<Guid, ScoreBurrow.Rating.Models.RatingSnapshot>();
+
+                foreach (var gp in gameParticipants)
+                {
+                    participantRatings[gp.LeagueMembershipId] = new ScoreBurrow.Rating.Models.RatingSnapshot(
+                        gp.RatingAtGameTime,
+                        gp.RatingDeviationAtGameTime,
+                        gp.VolatilityAtGameTime
+                    );
+                }
+
+                var ratingUpdates = ratingService.CalculateMultiPlayerGameRatings(participantRatings, winnerId);
+
+                // Update memberships and create rating history
+                foreach (var gp in gameParticipants)
+                {
+                    var update = ratingUpdates[gp.LeagueMembershipId];
+                    var membership = participants.First(p => p.membership.Id == gp.LeagueMembershipId).membership;
+
+                    membership.Glicko2Rating = update.NewRating.Rating;
+                    membership.Glicko2RatingDeviation = update.NewRating.RatingDeviation;
+                    membership.Glicko2Volatility = update.NewRating.Volatility;
+
+                    // Create rating history
+                    var history = new RatingHistory
+                    {
+                        Id = Guid.NewGuid(),
+                        LeagueMembershipId = gp.LeagueMembershipId,
+                        GameId = game.Id,
+                        CalculatedAt = gameEndTime,
+                        PreviousRating = update.PreviousRating.Rating,
+                        PreviousRatingDeviation = update.PreviousRating.RatingDeviation,
+                        PreviousVolatility = update.PreviousRating.Volatility,
+                        NewRating = update.NewRating.Rating,
+                        NewRatingDeviation = update.NewRating.RatingDeviation,
+                        NewVolatility = update.NewRating.Volatility,
+                        CreatedBy = auditUser,
+                        CreatedOn = DateTime.UtcNow
+                    };
+
+                    _dbContext.RatingHistory.Add(history);
+
+                    // Update statistics
+                    var stats = await _dbContext.PlayerStatistics
+                        .FirstOrDefaultAsync(s => s.LeagueMembershipId == gp.LeagueMembershipId);
+
+                    if (stats == null)
+                    {
+                        stats = new PlayerStatistics
+                        {
+                            Id = Guid.NewGuid(),
+                            LeagueMembershipId = gp.LeagueMembershipId
+                        };
+                        _dbContext.PlayerStatistics.Add(stats);
+                    }
+
+                    stats.GamesPlayed++;
+                    if (gp.IsWinner)
+                    {
+                        stats.GamesWon++;
+                    }
+                }
+
+                await _dbContext.SaveChangesAsync();
+            }
+
+            // Update favorite towns for all players
+            foreach (var (membership, _) in memberships)
+            {
+                var stats = await _dbContext.PlayerStatistics
+                    .FirstOrDefaultAsync(s => s.LeagueMembershipId == membership.Id);
+
+                if (stats != null)
+                {
+                    var townStats = await _dbContext.GameParticipants
+                        .Where(gp => gp.LeagueMembershipId == membership.Id)
+                        .GroupBy(gp => gp.TownId)
+                        .Select(g => new { TownId = g.Key, Count = g.Count() })
+                        .OrderByDescending(x => x.Count)
+                        .FirstOrDefaultAsync();
+
+                    if (townStats != null)
+                    {
+                        stats.FavoriteTownId = townStats.TownId;
+                    }
+                }
+            }
+
+            await _dbContext.SaveChangesAsync();
+            await transaction.CommitAsync();
+
+            InvalidateLeagueCache(leagueId);
+
+            _logger.LogInformation("League {LeagueId} populated with sample data by user {UserId}", leagueId, userId);
+
+            return true;
+        }
+        catch (Exception ex)
+        {
+            await transaction.RollbackAsync();
+            _logger.LogError(ex, "Error populating sample data for league {LeagueId}", leagueId);
+            return false;
+        }
+    }
+
+    public async Task<bool> WipeLeagueDataAsync(Guid leagueId, string userId)
+    {
+        if (!await IsOwnerAsync(userId, leagueId))
+        {
+            _logger.LogWarning("User {UserId} attempted to wipe data for league {LeagueId} without owner permission", userId, leagueId);
+            return false;
+        }
+
+        var league = await _dbContext.Leagues.FindAsync(leagueId);
+        if (league == null)
+        {
+            return false;
+        }
+
+        using var transaction = await _dbContext.Database.BeginTransactionAsync();
+        try
+        {
+            // Get all games in this league
+            var games = await _dbContext.Games
+                .Where(g => g.LeagueId == leagueId)
+                .ToListAsync();
+
+            var gameIds = games.Select(g => g.Id).ToList();
+
+            // Delete GameParticipants for all games
+            var gameParticipants = await _dbContext.GameParticipants
+                .Where(gp => gameIds.Contains(gp.GameId))
+                .ToListAsync();
+            _dbContext.GameParticipants.RemoveRange(gameParticipants);
+
+            // Delete Games
+            _dbContext.Games.RemoveRange(games);
+
+            // Get all memberships except owner
+            var memberships = await _dbContext.LeagueMemberships
+                .Where(m => m.LeagueId == leagueId && m.Role != LeagueRole.Owner)
+                .ToListAsync();
+
+            var membershipIds = memberships.Select(m => m.Id).ToList();
+
+            // Get owner membership to reset ratings
+            var ownerMembership = await _dbContext.LeagueMemberships
+                .FirstOrDefaultAsync(m => m.LeagueId == leagueId && m.Role == LeagueRole.Owner);
+
+            // Also include owner membership for deletion of related data
+            if (ownerMembership != null)
+            {
+                membershipIds.Add(ownerMembership.Id);
+            }
+
+            // Delete PlayerStatistics
+            var statistics = await _dbContext.PlayerStatistics
+                .Where(s => membershipIds.Contains(s.LeagueMembershipId))
+                .ToListAsync();
+            _dbContext.PlayerStatistics.RemoveRange(statistics);
+
+            // Delete RatingHistory
+            var ratingHistory = await _dbContext.RatingHistory
+                .Where(r => membershipIds.Contains(r.LeagueMembershipId))
+                .ToListAsync();
+            _dbContext.RatingHistory.RemoveRange(ratingHistory);
+
+            // Delete non-owner LeagueMemberships
+            _dbContext.LeagueMemberships.RemoveRange(memberships);
+
+            // Reset owner ratings
+            if (ownerMembership != null)
+            {
+                ownerMembership.Glicko2Rating = ScoreBurrow.Rating.Core.Glicko2Constants.DefaultRating;
+                ownerMembership.Glicko2RatingDeviation = ScoreBurrow.Rating.Core.Glicko2Constants.DefaultRatingDeviation;
+                ownerMembership.Glicko2Volatility = ScoreBurrow.Rating.Core.Glicko2Constants.DefaultVolatility;
+            }
+
+            await _dbContext.SaveChangesAsync();
+            await transaction.CommitAsync();
+
+            InvalidateLeagueCache(leagueId);
+
+            _logger.LogInformation("League {LeagueId} data wiped by user {UserId}", leagueId, userId);
+
+            return true;
+        }
+        catch (Exception ex)
+        {
+            await transaction.RollbackAsync();
+            _logger.LogError(ex, "Error wiping data for league {LeagueId}", leagueId);
+            return false;
+        }
+    }
+
     private void InvalidateLeagueCache(Guid leagueId)
     {
         // Clear league cache for all users by clearing all matching keys

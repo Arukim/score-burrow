@@ -73,4 +73,14 @@ public interface ILeagueService
     /// Checks if user is a member (any role) of the league
     /// </summary>
     Task<bool> IsMemberAsync(string userId, Guid leagueId);
+
+    /// <summary>
+    /// Populates league with sample data (8 players and 1000 games). Requires owner role and empty league.
+    /// </summary>
+    Task<bool> PopulateSampleDataAsync(Guid leagueId, string userId);
+
+    /// <summary>
+    /// Wipes all league data (games, participants, statistics, memberships except owner). Requires owner role.
+    /// </summary>
+    Task<bool> WipeLeagueDataAsync(Guid leagueId, string userId);
 }

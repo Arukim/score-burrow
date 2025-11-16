@@ -73,4 +73,10 @@ public interface ILeagueService
     /// Checks if user is a member (any role) of the league
     /// </summary>
     Task<bool> IsMemberAsync(string userId, Guid leagueId);
+
+    /// <summary>
+    /// Recalculates player statistics for all members in the league based on completed games.
+    /// Requires owner or admin role.
+    /// </summary>
+    Task<bool> RecalculateStatisticsAsync(Guid leagueId, string userId);
 }

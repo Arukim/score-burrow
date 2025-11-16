@@ -86,8 +86,13 @@ public class GameImporter
         Console.WriteLine("Updating current ratings on player memberships...");
         await UpdateFinalRatingsAsync(league.Id);
 
+        // 11. Calculate player statistics
+        Console.WriteLine("Calculating player statistics...");
+        await CalculatePlayerStatisticsAsync(league.Id);
+
         Console.WriteLine($"\n✓ Successfully imported {result.TotalGames} games with {result.TotalParticipants} participants");
         Console.WriteLine("✓ Updated current ratings for all players");
+        Console.WriteLine("✓ Calculated player statistics");
 
         return result;
     }
@@ -324,6 +329,87 @@ public class GameImporter
         else
         {
             Console.WriteLine("No rating updates needed (no RatingHistory entries found)");
+        }
+    }
+
+    private async Task CalculatePlayerStatisticsAsync(Guid leagueId)
+    {
+        // Get all memberships for this league
+        var memberships = await _dbContext.LeagueMemberships
+            .Where(lm => lm.LeagueId == leagueId)
+            .ToListAsync();
+
+        int updatedCount = 0;
+
+        foreach (var membership in memberships)
+        {
+            // Get all game participants for this player
+            var participations = await _dbContext.GameParticipants
+                .Include(gp => gp.Game)
+                .Where(gp => gp.LeagueMembershipId == membership.Id 
+                    && gp.Game.LeagueId == leagueId
+                    && gp.Game.Status == GameStatus.Completed)
+                .ToListAsync();
+
+            if (participations.Count == 0)
+                continue;
+
+            // Calculate statistics
+            var gamesPlayed = participations.Count;
+            var gamesWon = participations.Count(p => p.IsWinner);
+            var technicalLosses = participations.Count(p => p.IsTechnicalLoss);
+            var winRate = gamesPlayed > 0 ? (decimal)gamesWon * 100 / gamesPlayed : 0;
+            var averagePosition = participations.Average(p => p.Position);
+
+            // Find favorite town (most played)
+            var favoriteTownId = participations
+                .GroupBy(p => p.TownId)
+                .OrderByDescending(g => g.Count())
+                .Select(g => g.Key)
+                .FirstOrDefault();
+
+            // Find favorite hero (most played, if hero data exists)
+            var favoriteHeroId = participations
+                .Where(p => p.HeroId.HasValue)
+                .GroupBy(p => p.HeroId)
+                .OrderByDescending(g => g.Count())
+                .Select(g => g.Key)
+                .FirstOrDefault();
+
+            // Create or update statistics
+            var stats = await _dbContext.PlayerStatistics
+                .FirstOrDefaultAsync(s => s.LeagueMembershipId == membership.Id);
+
+            if (stats == null)
+            {
+                stats = new PlayerStatistics
+                {
+                    Id = Guid.NewGuid(),
+                    LeagueMembershipId = membership.Id
+                };
+                _dbContext.PlayerStatistics.Add(stats);
+            }
+
+            stats.GamesPlayed = gamesPlayed;
+            stats.GamesWon = gamesWon;
+            stats.TechnicalLosses = technicalLosses;
+            stats.WinRate = winRate;
+            stats.AveragePosition = (decimal)averagePosition;
+            stats.FavoriteTownId = favoriteTownId;
+            stats.FavoriteHeroId = favoriteHeroId;
+            stats.LastUpdated = DateTime.UtcNow;
+
+            updatedCount++;
+        }
+
+        if (updatedCount > 0)
+        {
+            await _dbContext.SaveChangesAsync();
+            Console.WriteLine($"Updated statistics for {updatedCount}/{memberships.Count} players");
+        }
+        else
+        {
+            Console.WriteLine("No statistics to update (no completed games found)");
         }
     }
 

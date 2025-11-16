@@ -96,6 +96,19 @@
                                 </div>
                             </div>
 
+                            <div class="card mb-3">
+                                <div class="card-header">
+                                    <h5 class="mb-0">Player Statistics</h5>
+                                </div>
+                                <div class="card-body">
+                                    <p>Recalculate player statistics (win rate, favorite town, etc.) based on all completed games in this league.</p>
+                                    <p class="text-muted"><small>This is useful if statistics are out of sync after importing historical data.</small></p>
+                                    <button class="btn btn-primary" @onclick="@(() => showRecalculateConfirm = true)" disabled="@isSubmitting">
+                                        <span class="oi oi-loop-circular me-1"></span> Recalculate Statistics
+                                    </button>
+                                </div>
+                            </div>
+
                             @if (isOwner)
                             {
                                 <div class="card mb-3">
@@ -356,6 +369,31 @@
                 </div>
             }
 
+            <!-- Recalculate Statistics Confirmation Modal -->
+            @if (showRecalculateConfirm)
+            {
+                <div class="modal show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+                    <div class="modal-dialog">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title">Recalculate Player Statistics</h5>
+                                <button type="button" class="btn-close" @onclick="@(() => showRecalculateConfirm = false)"></button>
+                            </div>
+                            <div class="modal-body">
+                                <p>This will recalculate all player statistics (win rate, favorite town, etc.) based on completed games in this league.</p>
+                                <p class="text-muted"><small>Existing statistics will be deleted and rebuilt from game data. This operation may take a few moments.</small></p>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" @onclick="@(() => showRecalculateConfirm = false)">Cancel</button>
+                                <button type="button" class="btn btn-primary" @onclick="@HandleRecalculateStatistics" disabled="@isSubmitting">
+                                    <span class="oi oi-loop-circular me-1"></span> Recalculate
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            }
+
             <!-- Archive Confirmation Modal -->
             @if (showArchiveConfirm)
             {
@@ -441,6 +479,7 @@
     private bool showChangeMember = false;
     private bool showArchiveConfirm = false;
     private bool showDeleteConfirm = false;
+    private bool showRecalculateConfirm = false;
     private string addMemberEmail = string.Empty;
     private string addMemberDisplayName = string.Empty;
     private string addUnregisteredPlayerDisplayName = string.Empty;
@@ -873,6 +912,36 @@
             else
             {
                 errorMessage = "Failed to remove member.";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error: {ex.Message}";
+        }
+        finally
+        {
+            isSubmitting = false;
+        }
+    }
+
+    private async Task HandleRecalculateStatistics()
+    {
+        try
+        {
+            isSubmitting = true;
+            errorMessage = null;
+            successMessage = null;
+            showRecalculateConfirm = false;
+
+            var success = await LeagueService.RecalculateStatisticsAsync(LeagueId, userId!);
+
+            if (success)
+            {
+                successMessage = "Player statistics recalculated successfully!";
+            }
+            else
+            {
+                errorMessage = "Failed to recalculate statistics.";
             }
         }
         catch (Exception ex)

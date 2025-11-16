@@ -204,9 +204,27 @@ else
                                             <label class="form-label">Player</label>
                                             <select class="form-select" @bind="assignment.CalculatorPlayerId" @bind:after="CalculateGoldDistribution">
                                                 <option value="">Select...</option>
-                                                @foreach (var pa in playerAssignments)
+                                                @{
+                                                    // Get players already selected in rows above
+                                                    var selectedAbove = new HashSet<Guid>();
+                                                    for (int r = 0; r < index; r++)
+                                                    {
+                                                        var playerId = playerAssignments[r].CalculatorPlayerId;
+                                                        if (playerId.HasValue && playerId.Value != Guid.Empty)
+                                                        {
+                                                            selectedAbove.Add(playerId.Value);
+                                                        }
+                                                    }
+                                                    
+                                                    // Sort: unselected players first, then selected players
+                                                    var sortedPlayers = playerAssignments
+                                                        .OrderBy(p => selectedAbove.Contains(p.MembershipId) ? 1 : 0)
+                                                        .ThenBy(p => p.PlayerName);
+                                                }
+                                                @foreach (var pa in sortedPlayers)
                                                 {
-                                                    <option value="@pa.MembershipId">@pa.PlayerName</option>
+                                                    var isAlreadySelected = selectedAbove.Contains(pa.MembershipId);
+                                                    <option value="@pa.MembershipId">@pa.PlayerName@(isAlreadySelected ? " (selected)" : "")</option>
                                                 }
                                             </select>
                                         </div>
@@ -224,8 +242,14 @@ else
                                     </div>
                                     <div class="mt-2">
                                         <strong>Distribution: </strong>
-                                        <span class="@(assignment.CalculatedGold >= 0 ? "text-success" : "text-danger")">
-                                            @(assignment.CalculatedGold >= 0 ? "+" : "")@assignment.CalculatedGold
+                                        @{
+                                            var selectedPlayer = assignment.CalculatorPlayerId.HasValue && assignment.CalculatorPlayerId.Value != Guid.Empty
+                                                ? playerAssignments.FirstOrDefault(p => p.MembershipId == assignment.CalculatorPlayerId.Value)
+                                                : null;
+                                            var displayGold = selectedPlayer?.CalculatedGold ?? 0;
+                                        }
+                                        <span class="@(displayGold >= 0 ? "text-success" : "text-danger")">
+                                            @(displayGold >= 0 ? "+" : "")@displayGold
                                         </span>
                                     </div>
                                 </div>
@@ -595,29 +619,34 @@ else
             {
                 stakingPlayer.CalculatedGold -= stake;
 
-                // Distribute stake equally to all players in rows below this one
-                var remainingRows = playerAssignments.Count - i - 1;
-                if (remainingRows > 0 && stake > 0)
+                // Count how many rows below have players selected
+                var playersBelow = new List<Guid>();
+                for (int j = i + 1; j < playerAssignments.Count; j++)
                 {
-                    var sharePerRow = stake / remainingRows;
-                    var remainder = stake % remainingRows;
-
-                    for (int j = i + 1; j < playerAssignments.Count; j++)
+                    var playerId = playerAssignments[j].CalculatorPlayerId;
+                    if (playerId.HasValue && playerId.Value != Guid.Empty)
                     {
-                        var rowBelow = playerAssignments[j];
-                        // Only distribute if there's a player assigned to this row
-                        if (rowBelow.CalculatorPlayerId.HasValue && rowBelow.CalculatorPlayerId != Guid.Empty)
+                        playersBelow.Add(playerId.Value);
+                    }
+                }
+
+                // Distribute stake equally to players selected in rows below
+                if (playersBelow.Count > 0 && stake > 0)
+                {
+                    var sharePerPlayer = stake / playersBelow.Count;
+                    var remainder = stake % playersBelow.Count;
+
+                    foreach (var playerId in playersBelow)
+                    {
+                        var playerToReceive = playerAssignments.FirstOrDefault(p => p.MembershipId == playerId);
+                        if (playerToReceive != null)
                         {
-                            var playerToReceive = playerAssignments.FirstOrDefault(p => p.MembershipId == rowBelow.CalculatorPlayerId.Value);
-                            if (playerToReceive != null)
+                            playerToReceive.CalculatedGold += sharePerPlayer;
+                            // Distribute remainder to first few players
+                            if (remainder > 0)
                             {
-                                playerToReceive.CalculatedGold += sharePerRow;
-                                // Distribute remainder to first few rows
-                                if (remainder > 0)
-                                {
-                                    playerToReceive.CalculatedGold += 1;
-                                    remainder--;
-                                }
+                                playerToReceive.CalculatedGold += 1;
+                                remainder--;
                             }
                         }
                     }

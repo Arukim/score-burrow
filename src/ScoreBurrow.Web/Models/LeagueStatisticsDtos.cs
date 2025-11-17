@@ -92,3 +92,24 @@ public class PlayerTownStatsDto
     public decimal WinRate { get; set; }
     public bool IsUnregistered { get; set; }
 }
+
+/// <summary>
+/// Statistics for player colours grouped by game size
+/// </summary>
+public class ColorStatisticsDto
+{
+    public int GameSize { get; set; }  // Number of players in the game
+    public List<ColorPerformanceDto> ColorPerformances { get; set; } = new();
+}
+
+/// <summary>
+/// Performance statistics for a specific colour in a specific game size
+/// </summary>
+public class ColorPerformanceDto
+{
+    public ScoreBurrow.Data.Enums.PlayerColor Color { get; set; }
+    public string ColorName { get; set; } = string.Empty;
+    public int Wins { get; set; }
+    public decimal WinRate { get; set; }
+    public int TotalGames { get; set; }
+}

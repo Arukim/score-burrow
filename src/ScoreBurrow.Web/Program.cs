@@ -35,6 +35,9 @@ builder.Services.AddScoped<ScoreBurrow.Web.Services.ILeagueService, ScoreBurrow.
 // Register game service
 builder.Services.AddScoped<ScoreBurrow.Web.Services.IGameService, ScoreBurrow.Web.Services.GameService>();
 
+// Register league statistics service
+builder.Services.AddScoped<ScoreBurrow.Web.Services.ILeagueStatisticsService, ScoreBurrow.Web.Services.LeagueStatisticsService>();
+
 // Configure DbContext with SQL Server
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") 
     ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");

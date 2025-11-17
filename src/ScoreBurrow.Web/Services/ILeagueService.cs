@@ -79,4 +79,9 @@ public interface ILeagueService
     /// Requires owner or admin role.
     /// </summary>
     Task<bool> RecalculateStatisticsAsync(Guid leagueId, string userId);
+
+    /// <summary>
+    /// Invalidate all cached data for a league (called after game completion, etc.)
+    /// </summary>
+    void InvalidateLeagueCache(Guid leagueId);
 }

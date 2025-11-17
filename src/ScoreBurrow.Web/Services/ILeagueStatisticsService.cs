@@ -40,4 +40,16 @@ public interface ILeagueStatisticsService
         Guid leagueMembershipId,
         int minGames = 3,
         int daysWindow = 365);
+
+    /// <summary>
+    /// Get league-wide colour statistics grouped by game size
+    /// </summary>
+    /// <param name="leagueId">League ID</param>
+    /// <param name="daysWindow">Number of days to look back (default 365)</param>
+    /// <param name="minGamesPerSize">Minimum games required for a game size to be included (default 10)</param>
+    /// <returns>List of colour statistics grouped by game size</returns>
+    Task<List<ColorStatisticsDto>> GetLeagueColorStatisticsAsync(
+        Guid leagueId,
+        int daysWindow = 365,
+        int minGamesPerSize = 10);
 }

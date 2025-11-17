@@ -270,6 +270,57 @@ else
         </div>
     </div>
 
+    <!-- Colour Statistics Section -->
+    <div class="row mb-5">
+        <div class="col-12">
+            <h2 class="mb-3">Colour Performance by Game Size (Last 365 Days)</h2>
+            @if (colorStats == null)
+            {
+                <p><em>Loading colour statistics...</em></p>
+            }
+            else if (!colorStats.Any())
+            {
+                <div class="alert alert-info">
+                    <em>No colour statistics available. Play more games to see how colours affect win rates.</em>
+                </div>
+            }
+            else
+            {
+                @foreach (var gameSizeStats in colorStats.OrderBy(c => c.GameSize))
+                {
+                    <h4>@(gameSizeStats.GameSize)-Player Games</h4>
+                    <div class="table-responsive mb-4">
+                        <table class="table table-sm table-striped">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Colour</th>
+                                    <th>Win Rate</th>
+                                    <th>W/L</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var color in gameSizeStats.ColorPerformances.OrderBy(c => (int)c.Color))
+                                {
+                                    <tr>
+                                        <td>
+                                            <strong>@color.ColorName</strong>
+                                        </td>
+                                        <td>
+                                            <span class="badge @GetWinRateBadgeClassByValue(color.WinRate, gameSizeStats.ColorPerformances.Select(c => c.WinRate).ToList())">
+                                                @color.WinRate.ToString("F1")%
+                                            </span>
+                                        </td>
+                                        <td><small>@color.Wins/@(color.TotalGames - color.Wins)</small></td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            }
+        </div>
+    </div>
+
 <script>
 function toggleTownStats(button, townName) {
     const row = button.closest('tr').nextElementSibling;
@@ -395,6 +446,7 @@ function toggleTownStats(button, townName) {
     private List<TopPlayerView>? topPlayers;
     private List<GameView>? games;
     private List<ScoreBurrow.Web.Models.TownStatisticsDto>? townStats;
+    private List<ScoreBurrow.Web.Models.ColorStatisticsDto>? colorStats;
     private bool isLoading = true;
     private bool canManageLeague = false;
     private string? userId;
@@ -417,10 +469,11 @@ function toggleTownStats(button, townName) {
         
         await LoadDataAsync();
         
-        // Load town statistics separately (async, don't block page load)
+        // Load statistics separately (async, don't block page load)
         if (league != null)
         {
             townStats = await StatisticsService.GetLeagueTownStatisticsAsync(LeagueId);
+            colorStats = await StatisticsService.GetLeagueColorStatisticsAsync(LeagueId);
         }
         
         isLoading = false;
@@ -610,7 +663,24 @@ function toggleTownStats(button, townName) {
     {
         // Assign colors based on quartiles (relative performance)
         var percentile = (double)index / Math.Max(totalCount - 1, 1);
-        
+
+        if (percentile <= 0.25) return "bg-success";      // Top 25% - Green
+        if (percentile <= 0.50) return "bg-info";         // 25-50% - Blue
+        if (percentile <= 0.75) return "bg-warning";      // 50-75% - Yellow
+        return "bg-danger";                                // Bottom 25% - Red
+    }
+
+    private string GetWinRateBadgeClassByValue(decimal winRate, List<decimal> allWinRates)
+    {
+        if (!allWinRates.Any()) return "bg-secondary";
+
+        var sortedRates = allWinRates.OrderByDescending(r => r).ToList();
+        var index = sortedRates.FindIndex(r => r == winRate);
+        if (index == -1) return "bg-secondary";
+
+        // Assign colors based on position (relative performance)
+        var percentile = (double)index / Math.Max(sortedRates.Count - 1, 1);
+
         if (percentile <= 0.25) return "bg-success";      // Top 25% - Green
         if (percentile <= 0.50) return "bg-info";         // 25-50% - Blue
         if (percentile <= 0.75) return "bg-warning";      // 50-75% - Yellow

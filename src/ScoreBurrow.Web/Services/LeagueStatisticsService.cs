@@ -376,6 +376,142 @@ public class LeagueStatisticsService : ILeagueStatisticsService
         return (topWinning, topLosing);
     }
 
+    public async Task<List<ColorStatisticsDto>> GetLeagueColorStatisticsAsync(
+        Guid leagueId,
+        int daysWindow = 365,
+        int minGamesPerSize = 10)
+    {
+        var cacheKey = $"league_color_stats_{leagueId}_{daysWindow}_{minGamesPerSize}";
+
+        if (_memoryCache.TryGetValue<List<ColorStatisticsDto>>(cacheKey, out var cachedStats))
+        {
+            return cachedStats!;
+        }
+
+        _logger.LogInformation(
+            "Calculating colour statistics for league {LeagueId} with {Days} days window and min {MinGames} games per size",
+            leagueId, daysWindow, minGamesPerSize);
+
+        var cutoffDate = DateTime.UtcNow.AddDays(-daysWindow);
+
+        // Get completed games with participants within time window for this league
+        var gamesWithParticipants = await _dbContext.Games
+            .AsNoTracking()
+            .Include(g => g.Participants)
+            .Where(g => g.LeagueId == leagueId
+                && g.Status == GameStatus.Completed
+                && g.StartTime >= cutoffDate)
+            .ToListAsync();
+
+        if (!gamesWithParticipants.Any())
+        {
+            _logger.LogInformation("No completed games found for league {LeagueId} in time window", leagueId);
+            return new List<ColorStatisticsDto>();
+        }
+
+        // Group games by participant count (game size)
+        var gamesBySize = gamesWithParticipants
+            .GroupBy(g => g.Participants.Count)
+            .Where(g => g.Sum(game => game.Participants.Count) >= minGamesPerSize) // Minimum total games across all colors for this size
+            .OrderBy(g => g.Key)
+            .ToList();
+
+        var colorStats = new List<ColorStatisticsDto>();
+
+        foreach (var sizeGroup in gamesBySize)
+        {
+            var gameSize = sizeGroup.Key;
+            var games = sizeGroup.ToList();
+
+            // Count total games for this size (each game contributes to the total)
+            var totalGameInstances = games.Count;
+
+            // Since colors are deterministic (Red=0, Blue=1, etc.) and we want to analyze per color,
+            // we need to group participants by their position/color assignment for this game size
+            var colorPerformances = new List<ColorPerformanceDto>();
+
+            // For each possible color (0-7, corresponding to enum values)
+            for (int colorIndex = 0; colorIndex < 8; colorIndex++)
+            {
+                var color = (PlayerColor)colorIndex;
+                var colorName = color.ToString();
+
+                // Find all participants who played this color in this game size
+                var colorParticipants = new List<Data.Entities.GameParticipant>();
+                foreach (var game in games)
+                {
+                    var participantWithColor = game.Participants.FirstOrDefault(p => (int)p.PlayerColor == colorIndex);
+                    if (participantWithColor != null)
+                    {
+                        colorParticipants.Add(participantWithColor);
+                    }
+                }
+
+                if (!colorParticipants.Any())
+                {
+                    continue; // This color wasn't used in any games of this size
+                }
+
+                var totalGames = colorParticipants.Count;
+                var wins = colorParticipants.Count(p => p.IsWinner);
+                var winRate = totalGames > 0 ? (decimal)wins * 100 / totalGames : 0;
+
+                colorPerformances.Add(new ColorPerformanceDto
+                {
+                    Color = color,
+                    ColorName = colorName,
+                    Wins = wins,
+                    WinRate = winRate,
+                    TotalGames = totalGames
+                });
+            }
+
+            // Sort colors by enum order (Red=0, Blue=1, etc.)
+            colorPerformances = colorPerformances
+                .OrderBy(c => (int)c.Color)
+                .ToList();
+
+            colorStats.Add(new ColorStatisticsDto
+            {
+                GameSize = gameSize,
+                ColorPerformances = colorPerformances
+            });
+        }
+
+        // Sort by game size ascending
+        var result = colorStats.OrderBy(c => c.GameSize).ToList();
+
+        // Cache for 1 hour
+        var cacheOptions = new MemoryCacheEntryOptions()
+            .SetSlidingExpiration(TimeSpan.FromHours(1));
+        _memoryCache.Set(cacheKey, result, cacheOptions);
+
+        _logger.LogInformation(
+            "Calculated colour statistics for {Count} game sizes in league {LeagueId}",
+            result.Count, leagueId);
+
+        return result;
+    }
+
+    /// <summary>
+    /// Get display name for a player color
+    /// </summary>
+    private string GetColorDisplayName(PlayerColor color)
+    {
+        return color switch
+        {
+            PlayerColor.Red => "Red",
+            PlayerColor.Blue => "Blue",
+            PlayerColor.Tan => "Tan",
+            PlayerColor.Green => "Green",
+            PlayerColor.Orange => "Orange",
+            PlayerColor.Purple => "Purple",
+            PlayerColor.Teal => "Teal",
+            PlayerColor.Pink => "Pink",
+            _ => color.ToString()
+        };
+    }
+
     /// <summary>
     /// Calculate median value from a list of integers
     /// </summary>

@@ -7,9 +7,11 @@
 @using ScoreBurrow.Data
 @using ScoreBurrow.Data.Entities
 @using ScoreBurrow.Data.Enums
+@using ScoreBurrow.Web.Services
 @inject ScoreBurrowDbContext DbContext
 @inject IMemoryCache MemoryCache
 @inject NavigationManager NavigationManager
+@inject ILeagueStatisticsService StatisticsService
 
 <h1>@(!string.IsNullOrWhiteSpace(membership?.PlayerDisplayName) ? membership?.PlayerDisplayName : membership?.PlayerNickname ?? "Player")</h1>
 
@@ -160,6 +162,94 @@ else
                     }
                 </div>
             </div>
+            
+            <!-- Player Performance Section -->
+            @if (playerPerformance != null)
+            {
+                <div class="card mt-3">
+                    <div class="card-header">
+                        <h5>Performance Insights (Last 365 Days)</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h6>Favorite Towns</h6>
+                                @if (playerPerformance.FavoriteTowns.Any())
+                                {
+                                    <ul class="list-unstyled small">
+                                        @foreach (var town in playerPerformance.FavoriteTowns.Take(3))
+                                        {
+                                            <li class="mb-2">
+                                                <strong>@town.TownName</strong><br />
+                                                <span class="text-success">@town.WinRate.ToString("F0")% WR</span> (@town.GamesPlayed games)
+                                            </li>
+                                        }
+                                    </ul>
+                                }
+                                else
+                                {
+                                    <p class="small text-muted">No favorite towns yet</p>
+                                }
+
+                                <h6 class="mt-4">Best Towns (Weighted)</h6>
+                                @if (playerPerformance.BestWeightedTowns.Any())
+                                {
+                                    <ul class="list-unstyled small">
+                                        @foreach (var town in playerPerformance.BestWeightedTowns.Take(3))
+                                        {
+                                            <li class="mb-2">
+                                                <strong>@town.TownName</strong><br />
+                                                <span class="text-primary">@town.WinRate.ToString("F1")% Weighted</span> (@town.GamesPlayed games)
+                                            </li>
+                                        }
+                                    </ul>
+                                }
+                                else
+                                {
+                                    <p class="small text-muted">No weighted town rankings yet</p>
+                                }
+                            </div>
+                            <div class="col-md-6">
+                                <h6>Best Towns</h6>
+                                @if (playerPerformance.BestTowns.Any())
+                                {
+                                    <ul class="list-unstyled small">
+                                        @foreach (var town in playerPerformance.BestTowns.Take(3))
+                                        {
+                                            <li class="mb-2">
+                                                <strong>@town.TownName</strong><br />
+                                                <span class="text-success">@town.WinRate.ToString("F0")% WR</span> (@town.GamesPlayed games)
+                                            </li>
+                                        }
+                                    </ul>
+                                }
+                                else
+                                {
+                                    <p class="small text-muted">Play at least 3 games with a town to see stats</p>
+                                }
+
+                                <h6 class="mt-4">Best Heroes</h6>
+                                @if (playerPerformance.BestHeroes.Any())
+                                {
+                                    <ul class="list-unstyled small">
+                                        @foreach (var hero in playerPerformance.BestHeroes.Take(3))
+                                        {
+                                            <li class="mb-2">
+                                                <strong>@hero.HeroName</strong><br />
+                                                <span class="text-success">@hero.WinRate.ToString("F0")% WR</span> (@hero.GamesPlayed games)
+                                            </li>
+                                        }
+                                    </ul>
+                                }
+                                else
+                                {
+                                    <p class="small text-muted">Play at least 3 games with a hero to see stats</p>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            }
         </div>
 
         <div class="col-md-8">
@@ -262,6 +352,7 @@ else
     private LeagueMembership? membership;
     private List<GameView>? games;
     private List<RatingHistory>? ratingHistory;
+    private ScoreBurrow.Web.Models.PlayerPerformanceDto? playerPerformance;
     private bool isLoading = true;
     private int currentGamePage = 1;
     private int gamePages = 1;
@@ -271,6 +362,13 @@ else
     {
         currentGamePage = GamePage > 0 ? GamePage : 1;
         await LoadDataAsync();
+        
+        // Load player performance separately
+        if (membership != null)
+        {
+            playerPerformance = await StatisticsService.GetPlayerPerformanceAsync(MembershipId);
+        }
+        
         isLoading = false;
     }
 

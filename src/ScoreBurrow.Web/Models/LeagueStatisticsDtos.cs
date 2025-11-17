@@ -15,6 +15,8 @@ public class TownStatisticsDto
     public TownValueCategory? ValueCategory { get; set; } // null if < 10 games
     public List<HeroStatisticsDto> TopWinningHeroes { get; set; } = new();
     public List<HeroStatisticsDto> TopLosingHeroes { get; set; } = new();
+    public List<PlayerTownStatsDto> TopPlayers { get; set; } = new();       // Top players by pick count
+    public List<PlayerTownStatsDto> BestPlayers { get; set; } = new();      // Top players by performance
 }
 
 /// <summary>
@@ -49,6 +51,8 @@ public class PlayerPerformanceDto
     public List<TownPerformanceDto> WorstTowns { get; set; } = new();
     public List<HeroPerformanceDto> BestHeroes { get; set; } = new();
     public List<HeroPerformanceDto> WorstHeroes { get; set; } = new();
+    public List<TownPerformanceDto> FavoriteTowns { get; set; } = new();    // Top towns by pick count
+    public List<TownPerformanceDto> BestWeightedTowns { get; set; } = new(); // Top towns by weighted win rate
 }
 
 /// <summary>
@@ -73,4 +77,18 @@ public class HeroPerformanceDto
     public int GamesPlayed { get; set; }
     public int Wins { get; set; }
     public decimal WinRate { get; set; }
+}
+
+/// <summary>
+/// Player statistics for a specific town (used in town expand details)
+/// </summary>
+public class PlayerTownStatsDto
+{
+    public Guid LeagueMembershipId { get; set; }
+    public string PlayerNickname { get; set; } = string.Empty;
+    public string? PlayerDisplayName { get; set; }
+    public int GamesPlayed { get; set; }
+    public int Wins { get; set; }
+    public decimal WinRate { get; set; }
+    public bool IsUnregistered { get; set; }
 }

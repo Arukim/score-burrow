@@ -41,7 +41,8 @@ public class LeagueStatisticsService : ILeagueStatisticsService
             .Include(gp => gp.Game)
             .Include(gp => gp.Town)
             .Include(gp => gp.Hero)
-            .Where(gp => gp.Game.LeagueId == leagueId 
+            .Include(gp => gp.LeagueMembership)
+            .Where(gp => gp.Game.LeagueId == leagueId
                 && gp.Game.Status == GameStatus.Completed
                 && gp.Game.StartTime >= cutoffDate)
             .ToListAsync();
@@ -56,7 +57,7 @@ public class LeagueStatisticsService : ILeagueStatisticsService
         var allGoldTrades = participants.Select(p => p.GoldTrade).ToList();
         var leagueMedianGold = CalculateMedian(allGoldTrades);
 
-        // Group by town
+        // Group by town - first pass to calculate stats
         var townGroups = participants.GroupBy(p => p.TownId);
         var townStats = new List<TownStatisticsDto>();
 
@@ -75,22 +76,11 @@ public class LeagueStatisticsService : ILeagueStatisticsService
             var avgGoldTrade = (int)Math.Round(goldTrades.Average() / 100.0) * 100; // Round to /100
             var medianGoldTrade = (int)Math.Round(CalculateMedian(goldTrades) / 500.0) * 500; // Round to /500
 
-            // Determine value category (only if >= 10 games)
-            TownValueCategory? valueCategory = null;
-            if (gamesPlayed >= 10)
-            {
-                if (medianGoldTrade > leagueMedianGold + 500 && winRate < 40)
-                {
-                    valueCategory = TownValueCategory.Overhyped;
-                }
-                else if (medianGoldTrade < leagueMedianGold - 500 && winRate > 60)
-                {
-                    valueCategory = TownValueCategory.Undervalued;
-                }
-            }
-
             // Calculate hero statistics within this town
             var heroStats = CalculateHeroStatistics(townParticipants, gamesPlayed);
+
+            // Calculate player statistics within this town
+            var playerStats = CalculatePlayerStatistics(townParticipants);
 
             townStats.Add(new TownStatisticsDto
             {
@@ -101,10 +91,46 @@ public class LeagueStatisticsService : ILeagueStatisticsService
                 WinRate = winRate,
                 AvgGoldTrade = avgGoldTrade,
                 MedianGoldTrade = medianGoldTrade,
-                ValueCategory = valueCategory,
+                ValueCategory = null, // Will be set in second pass
                 TopWinningHeroes = heroStats.TopWinning,
-                TopLosingHeroes = heroStats.TopLosing
+                TopLosingHeroes = heroStats.TopLosing,
+                TopPlayers = playerStats.TopPlayers,
+                BestPlayers = playerStats.BestPlayers
             });
+        }
+
+        // Second pass: Calculate dynamic thresholds and assign value categories
+        // Only consider towns with >= 10 games for threshold calculation
+        var significantTowns = townStats.Where(t => t.GamesPlayed >= 10).ToList();
+        
+        if (significantTowns.Any())
+        {
+            // Calculate average win rate across all significant towns
+            var avgWinRate = significantTowns.Average(t => t.WinRate);
+            
+            // Define high/low thresholds as 5 percentage points above/below average
+            var highWinRateThreshold = avgWinRate + 5;
+            var lowWinRateThreshold = avgWinRate - 5;
+            
+            _logger.LogInformation(
+                "Win rate thresholds for league {LeagueId}: Low={Low:F1}%, Avg={Avg:F1}%, High={High:F1}%",
+                leagueId, lowWinRateThreshold, avgWinRate, highWinRateThreshold);
+
+            // Assign value categories based on dynamic thresholds
+            foreach (var town in significantTowns)
+            {
+                // Note: Negative gold = expensive (you paid), Positive gold = cheap (you received)
+                // Overhyped: Expensive (negative gold) but low win rate
+                if (town.MedianGoldTrade < leagueMedianGold - 500 && town.WinRate < lowWinRateThreshold)
+                {
+                    town.ValueCategory = TownValueCategory.Overhyped;
+                }
+                // Undervalued: Cheap (positive gold) but high win rate
+                else if (town.MedianGoldTrade > leagueMedianGold + 500 && town.WinRate > highWinRateThreshold)
+                {
+                    town.ValueCategory = TownValueCategory.Undervalued;
+                }
+            }
         }
 
         // Order by games played descending
@@ -183,6 +209,28 @@ public class LeagueStatisticsService : ILeagueStatisticsService
             .Take(3)
             .ToList();
 
+        // Calculate favorite towns (by pick count)
+        result.FavoriteTowns = townPerformances
+            .OrderByDescending(t => t.GamesPlayed)
+            .ThenByDescending(t => t.WinRate)
+            .Take(3)
+            .ToList();
+
+        // Calculate best weighted towns using Bayesian average (Wins + 2) / (Games + 4)
+        result.BestWeightedTowns = townPerformances
+            .Select(t => new TownPerformanceDto
+            {
+                TownId = t.TownId,
+                TownName = t.TownName,
+                GamesPlayed = t.GamesPlayed,
+                Wins = t.Wins,
+                WinRate = (decimal)((t.Wins + 2.0) / (t.GamesPlayed + 4.0) * 100)  // Weighted score as win rate representation
+            })
+            .OrderByDescending(t => (t.Wins + 2.0) / (t.GamesPlayed + 4.0))
+            .ThenByDescending(t => t.GamesPlayed)
+            .Take(3)
+            .ToList();
+
         // Calculate hero performance (only where hero data exists)
         var heroParticipants = participants.Where(p => p.HeroId.HasValue && p.Hero != null).ToList();
         
@@ -229,6 +277,50 @@ public class LeagueStatisticsService : ILeagueStatisticsService
     {
         var performance = await GetPlayerPerformanceAsync(leagueMembershipId, minGames, daysWindow);
         return performance.BestTowns.FirstOrDefault();
+    }
+
+
+    /// <summary>
+    /// Calculate player statistics within a town (for expandable details)
+    /// </summary>
+    private (List<PlayerTownStatsDto> TopPlayers, List<PlayerTownStatsDto> BestPlayers) CalculatePlayerStatistics(
+        List<Data.Entities.GameParticipant> townParticipants)
+    {
+        var playerStats = townParticipants
+            .GroupBy(p => p.LeagueMembershipId)
+            .Select(g =>
+            {
+                var gamesPlayed = g.Count();
+                var wins = g.Count(p => p.IsWinner);
+                var winRate = gamesPlayed > 0 ? (decimal)wins * 100 / gamesPlayed : 0;
+
+                var membership = g.First().LeagueMembership;
+                return new PlayerTownStatsDto
+                {
+                    LeagueMembershipId = g.Key,
+                    PlayerNickname = membership?.PlayerNickname ?? "Unknown",
+                    PlayerDisplayName = membership?.PlayerDisplayName,
+                    GamesPlayed = gamesPlayed,
+                    Wins = wins,
+                    WinRate = winRate,
+                    IsUnregistered = membership?.UserId == null
+                };
+            })
+            .ToList();
+
+        var topPlayers = playerStats
+            .OrderByDescending(p => p.GamesPlayed)
+            .ThenByDescending(p => p.WinRate)
+            .Take(3)
+            .ToList();
+
+        var bestPlayers = playerStats
+            .OrderByDescending(p => p.WinRate)
+            .ThenByDescending(p => p.GamesPlayed)
+            .Take(3)
+            .ToList();
+
+        return (topPlayers, bestPlayers);
     }
 
     /// <summary>

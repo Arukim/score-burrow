@@ -67,8 +67,9 @@ public class LeagueStatisticsService : ILeagueStatisticsService
             var townName = townGroup.First().Town.Name;
             var townParticipants = townGroup.ToList();
 
-            var gamesPlayed = townParticipants.Count;
-            var wins = townParticipants.Count(p => p.IsWinner);
+            var validParticipants = townParticipants.Where(p => !p.IsTechnicalLoss).ToList();
+            var gamesPlayed = validParticipants.Count;
+            var wins = validParticipants.Count(p => p.IsWinner);
             var winRate = gamesPlayed > 0 ? (decimal)wins * 100 / gamesPlayed : 0;
 
             // Calculate gold trade statistics
@@ -186,13 +187,19 @@ public class LeagueStatisticsService : ILeagueStatisticsService
         // Calculate town performance
         var townPerformances = participants
             .GroupBy(p => p.TownId)
-            .Select(g => new TownPerformanceDto
+            .Select(g =>
             {
-                TownId = g.Key,
-                TownName = g.First().Town.Name,
-                GamesPlayed = g.Count(),
-                Wins = g.Count(p => p.IsWinner),
-                WinRate = g.Count() > 0 ? (decimal)g.Count(p => p.IsWinner) * 100 / g.Count() : 0
+                var validParticipants = g.Where(p => !p.IsTechnicalLoss).ToList();
+                var gamesPlayed = validParticipants.Count;
+                var wins = validParticipants.Count(p => p.IsWinner);
+                return new TownPerformanceDto
+                {
+                    TownId = g.Key,
+                    TownName = g.First().Town.Name,
+                    GamesPlayed = gamesPlayed,
+                    Wins = wins,
+                    WinRate = gamesPlayed > 0 ? (decimal)wins * 100 / gamesPlayed : 0
+                };
             })
             .Where(t => t.GamesPlayed >= minGames)
             .ToList();
@@ -238,13 +245,19 @@ public class LeagueStatisticsService : ILeagueStatisticsService
         {
             var heroPerformances = heroParticipants
                 .GroupBy(p => p.HeroId!.Value)
-                .Select(g => new HeroPerformanceDto
+                .Select(g =>
                 {
-                    HeroId = g.Key,
-                    HeroName = g.First().Hero!.Name,
-                    GamesPlayed = g.Count(),
-                    Wins = g.Count(p => p.IsWinner),
-                    WinRate = g.Count() > 0 ? (decimal)g.Count(p => p.IsWinner) * 100 / g.Count() : 0
+                    var validHeroParticipants = g.Where(p => !p.IsTechnicalLoss).ToList();
+                    var gamesPlayed = validHeroParticipants.Count;
+                    var wins = validHeroParticipants.Count(p => p.IsWinner);
+                    return new HeroPerformanceDto
+                    {
+                        HeroId = g.Key,
+                        HeroName = g.First().Hero!.Name,
+                        GamesPlayed = gamesPlayed,
+                        Wins = wins,
+                        WinRate = gamesPlayed > 0 ? (decimal)wins * 100 / gamesPlayed : 0
+                    };
                 })
                 .Where(h => h.GamesPlayed >= minGames)
                 .ToList();
@@ -290,8 +303,9 @@ public class LeagueStatisticsService : ILeagueStatisticsService
             .GroupBy(p => p.LeagueMembershipId)
             .Select(g =>
             {
-                var gamesPlayed = g.Count();
-                var wins = g.Count(p => p.IsWinner);
+                var validPlayerParticipants = g.Where(p => !p.IsTechnicalLoss).ToList();
+                var gamesPlayed = validPlayerParticipants.Count;
+                var wins = validPlayerParticipants.Count(p => p.IsWinner);
                 var winRate = gamesPlayed > 0 ? (decimal)wins * 100 / gamesPlayed : 0;
 
                 var membership = g.First().LeagueMembership;
@@ -344,10 +358,11 @@ public class LeagueStatisticsService : ILeagueStatisticsService
             .GroupBy(p => p.HeroId!.Value)
             .Select(g =>
             {
-                var gamesPlayed = g.Count();
-                var wins = g.Count(p => p.IsWinner);
+                var validHeroStatsParticipants = g.Where(p => !p.IsTechnicalLoss).ToList();
+                var gamesPlayed = validHeroStatsParticipants.Count;
+                var wins = validHeroStatsParticipants.Count(p => p.IsWinner);
                 var winRate = gamesPlayed > 0 ? (decimal)wins * 100 / gamesPlayed : 0;
-                var pickRate = totalTownGames > 0 ? (decimal)gamesPlayed * 100 / totalTownGames : 0;
+                var pickRate = totalTownGames > 0 ? (decimal)g.Count() * 100 / totalTownGames : 0;
 
                 return new HeroStatisticsDto
                 {
@@ -423,8 +438,15 @@ public class LeagueStatisticsService : ILeagueStatisticsService
             var gameSize = sizeGroup.Key;
             var games = sizeGroup.ToList();
 
-            // Count total games for this size (each game contributes to the total)
-            var totalGameInstances = games.Count;
+            // Get all non-technical loss participants for this game size to calculate proportional win rates
+            var allParticipantsInSize = new List<Data.Entities.GameParticipant>();
+            foreach (var game in games)
+            {
+                allParticipantsInSize.AddRange(game.Participants.Where(p => !p.IsTechnicalLoss));
+            }
+
+            var totalWinsInSize = allParticipantsInSize.Count(p => p.IsWinner);
+            var totalGamesInSize = allParticipantsInSize.Count;
 
             // Since colors are deterministic (Red=0, Blue=1, etc.) and we want to analyze per color,
             // we need to group participants by their position/color assignment for this game size
@@ -436,11 +458,11 @@ public class LeagueStatisticsService : ILeagueStatisticsService
                 var color = (PlayerColor)colorIndex;
                 var colorName = color.ToString();
 
-                // Find all participants who played this color in this game size
+                // Find all non-technical loss participants who played this color in this game size
                 var colorParticipants = new List<Data.Entities.GameParticipant>();
                 foreach (var game in games)
                 {
-                    var participantWithColor = game.Participants.FirstOrDefault(p => (int)p.PlayerColor == colorIndex);
+                    var participantWithColor = game.Participants.FirstOrDefault(p => (int)p.PlayerColor == colorIndex && !p.IsTechnicalLoss);
                     if (participantWithColor != null)
                     {
                         colorParticipants.Add(participantWithColor);
@@ -454,7 +476,8 @@ public class LeagueStatisticsService : ILeagueStatisticsService
 
                 var totalGames = colorParticipants.Count;
                 var wins = colorParticipants.Count(p => p.IsWinner);
-                var winRate = totalGames > 0 ? (decimal)wins * 100 / totalGames : 0;
+                // Calculate percentage of all wins in this game size captured by this color
+                var winRate = totalWinsInSize > 0 ? (decimal)wins * 100 / totalWinsInSize : 0;
 
                 colorPerformances.Add(new ColorPerformanceDto
                 {

@@ -49,14 +49,19 @@ public class PlayerPerformanceDto
     public Guid LeagueMembershipId { get; set; }
     public List<TownPerformanceDto> BestTowns { get; set; } = new();
     public List<TownPerformanceDto> WorstTowns { get; set; } = new();
+    public List<TownPerformanceDto> FavoriteTowns { get; set; } = new();
+    public List<TownPerformanceDto> BestWeightedTowns { get; set; } = new();
     public List<HeroPerformanceDto> BestHeroes { get; set; } = new();
     public List<HeroPerformanceDto> WorstHeroes { get; set; } = new();
-    public List<TownPerformanceDto> FavoriteTowns { get; set; } = new();    // Top towns by pick count
-    public List<TownPerformanceDto> BestWeightedTowns { get; set; } = new(); // Top towns by weighted win rate
+    
+    /// <summary>
+    /// Color distribution breakdown by game size
+    /// </summary>
+    public List<PlayerColorDistributionDto> ColorDistributions { get; set; } = new();
 }
 
 /// <summary>
-/// Town performance for a specific player
+/// Town performance statistics for a player
 /// </summary>
 public class TownPerformanceDto
 {
@@ -68,7 +73,7 @@ public class TownPerformanceDto
 }
 
 /// <summary>
-/// Hero performance for a specific player
+/// Hero performance statistics for a player
 /// </summary>
 public class HeroPerformanceDto
 {
@@ -112,4 +117,25 @@ public class ColorPerformanceDto
     public int Wins { get; set; }
     public decimal WinRate { get; set; }
     public int TotalGames { get; set; }
+}
+
+/// <summary>
+/// Player's color distribution for a specific game size
+/// </summary>
+public class PlayerColorDistributionDto
+{
+    public int GameSize { get; set; }
+    public int TotalGames { get; set; }
+    public List<ColorDistributionItemDto> ColorBreakdown { get; set; } = new();
+}
+
+/// <summary>
+/// Individual color usage statistics for a player
+/// </summary>
+public class ColorDistributionItemDto
+{
+    public ScoreBurrow.Data.Enums.PlayerColor Color { get; set; }
+    public string ColorName { get; set; } = string.Empty;
+    public int GamesPlayed { get; set; }
+    public decimal Percentage { get; set; }
 }

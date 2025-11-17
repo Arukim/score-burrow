@@ -161,13 +161,41 @@ az webapp deployment list \
 - **Infrastructure**: Azure App Service (Linux)
 - **IaC**: Azure Bicep
 
-## Features (To Be Implemented)
+## Features
 
+### Implemented
 - 🎮 Track game scores for multiple players
-- 📊 Calculate winners and rankings
-- 🏆 View game history and statistics
-- 📈 Player performance tracking
-- 🎯 Multiple game type support
+- 📊 Calculate winners and rankings using Glicko-2 rating system
+- 🏆 View game history and comprehensive statistics
+- 📈 Advanced player performance tracking:
+  - **Color-Adjusted Win Rate**: Player win rates normalized by expected color performance
+  - **Color Distribution Analysis**: Breakdown of colors played by game size
+  - Town and hero performance statistics
+  - Rating history visualization
+- 🎯 League management with multiple game type support
+- 🔐 Authentication and authorization
+- 📦 Data import from CSV files
+
+### Statistics Features
+
+#### Color-Weighted Performance
+The system analyzes league-wide color statistics (365-day window) to calculate:
+- **Expected Win Rate by Color**: Each color's performance in different game sizes
+- **Color-Adjusted Win Rate**: Player performance weighted by the difficulty of colors played
+  - Formula: `Sum(isWinner ? (1.0 / expectedColorWinRate) : 0) / totalGames`
+  - Example: Winning with a color that has 25% expected win rate counts more than winning with a 40% win rate color
+
+#### Color Distribution
+Shows the distribution of colors a player has played, broken down by game size:
+- Percentage of games played with each color
+- Visual progress bars for easy interpretation
+- Minimum 3 games required per game size to display statistics
+
+### To Be Implemented
+- 🌐 Multi-language support
+- 📱 Mobile-optimized interface
+- 📧 Email notifications for game updates
+- 🏅 Achievement system
 
 ## Development Roadmap
 

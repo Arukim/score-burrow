@@ -184,6 +184,12 @@ public class LeagueStatisticsService : ILeagueStatisticsService
             return result;
         }
 
+        // Get league ID for color statistics
+        var leagueId = participants.First().Game.LeagueId;
+
+        // Get league color statistics for color-adjusted win rate calculation
+        var leagueColorStats = await GetLeagueColorStatisticsAsync(leagueId, daysWindow);
+
         // Calculate town performance
         var townPerformances = participants
             .GroupBy(p => p.TownId)
@@ -274,6 +280,9 @@ public class LeagueStatisticsService : ILeagueStatisticsService
                 .Take(3)
                 .ToList();
         }
+
+        // Calculate color distribution by game size
+        result.ColorDistributions = CalculateColorDistributions(participants, minGames);
 
         // Cache for 1 hour
         var cacheOptions = new MemoryCacheEntryOptions()
@@ -556,5 +565,68 @@ public class LeagueStatisticsService : ILeagueStatisticsService
             // Odd number of elements - middle value
             return sorted[mid];
         }
+    }
+
+    /// <summary>
+    /// Calculate color distribution by game size for a player
+    /// </summary>
+    private List<PlayerColorDistributionDto> CalculateColorDistributions(
+        List<Data.Entities.GameParticipant> participants,
+        int minGames)
+    {
+        var validParticipants = participants.Where(p => !p.IsTechnicalLoss).ToList();
+
+        if (!validParticipants.Any())
+        {
+            return new List<PlayerColorDistributionDto>();
+        }
+
+        // Group by game size
+        var gamesBySize = new Dictionary<int, List<Data.Entities.GameParticipant>>();
+        
+        foreach (var participant in validParticipants)
+        {
+            // Get game size from database
+            var gameSize = _dbContext.GameParticipants
+                .Where(gp => gp.GameId == participant.GameId)
+                .Count();
+
+            if (!gamesBySize.ContainsKey(gameSize))
+            {
+                gamesBySize[gameSize] = new List<Data.Entities.GameParticipant>();
+            }
+            gamesBySize[gameSize].Add(participant);
+        }
+
+        var distributions = new List<PlayerColorDistributionDto>();
+
+        foreach (var sizeGroup in gamesBySize.Where(g => g.Value.Count >= minGames).OrderBy(g => g.Key))
+        {
+            var gameSize = sizeGroup.Key;
+            var gamesInSize = sizeGroup.Value;
+            var totalGamesInSize = gamesInSize.Count;
+
+            // Count games by color
+            var colorCounts = gamesInSize
+                .GroupBy(p => p.PlayerColor)
+                .Select(g => new ColorDistributionItemDto
+                {
+                    Color = g.Key,
+                    ColorName = g.Key.ToString(),
+                    GamesPlayed = g.Count(),
+                    Percentage = (decimal)g.Count() * 100 / totalGamesInSize
+                })
+                .OrderBy(c => (int)c.Color) // Sort by enum order
+                .ToList();
+
+            distributions.Add(new PlayerColorDistributionDto
+            {
+                GameSize = gameSize,
+                TotalGames = totalGamesInSize,
+                ColorBreakdown = colorCounts
+            });
+        }
+
+        return distributions.OrderBy(d => d.GameSize).ToList();
     }
 }

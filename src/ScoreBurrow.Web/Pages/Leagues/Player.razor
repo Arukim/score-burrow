@@ -249,6 +249,51 @@ else
                         </div>
                     </div>
                 </div>
+
+                <!-- Color Distribution Section -->
+                <div class="card mt-3">
+                    <div class="card-header">
+                        <h5>Color Distribution by Game Size</h5>
+                    </div>
+                    <div class="card-body">
+                        @if (playerPerformance.ColorDistributions.Any())
+                        {
+                            <p class="small text-muted">Shows which colors you played most frequently in different game sizes</p>
+                            @foreach (var distribution in playerPerformance.ColorDistributions)
+                            {
+                                <div class="mb-4">
+                                    <strong>@distribution.GameSize-Player Games</strong> <span class="text-muted small">(@distribution.TotalGames games)</span>
+                                    <div class="mt-2">
+                                        @foreach (var colorItem in distribution.ColorBreakdown)
+                                        {
+                                            <div class="mb-2">
+                                                <div class="d-flex justify-content-between small mb-1">
+                                                    <span>
+                                                        <span class="badge" style="background-color: @GetColorHex(colorItem.Color)">@colorItem.ColorName</span>
+                                                    </span>
+                                                    <span>@colorItem.Percentage.ToString("F1")% (@colorItem.GamesPlayed games)</span>
+                                                </div>
+                                                <div class="progress" style="height: 20px;">
+                                                    <div class="progress-bar" 
+                                                         role="progressbar" 
+                                                         style="width: @colorItem.Percentage.ToString("F1")%; background-color: @GetColorHex(colorItem.Color);" 
+                                                         aria-valuenow="@colorItem.Percentage" 
+                                                         aria-valuemin="0" 
+                                                         aria-valuemax="100">
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        }
+                                    </div>
+                                </div>
+                            }
+                        }
+                        else
+                        {
+                            <p class="small text-muted">Play at least 3 games in a game size to see color distribution</p>
+                        }
+                    </div>
+                </div>
             }
         </div>
 
@@ -497,6 +542,22 @@ else
             2 => "nd",
             3 => "rd",
             _ => "th"
+        };
+    }
+
+    private string GetColorHex(PlayerColor color)
+    {
+        return color switch
+        {
+            PlayerColor.Red => "#dc3545",
+            PlayerColor.Blue => "#0d6efd",
+            PlayerColor.Tan => "#d4a574",
+            PlayerColor.Green => "#198754",
+            PlayerColor.Orange => "#fd7e14",
+            PlayerColor.Purple => "#6f42c1",
+            PlayerColor.Teal => "#20c997",
+            PlayerColor.Pink => "#d63384",
+            _ => "#6c757d"
         };
     }
 

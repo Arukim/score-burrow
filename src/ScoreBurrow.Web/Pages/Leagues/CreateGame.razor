@@ -34,8 +34,9 @@ else
             <ol class="list-group list-group-horizontal">
                 <li class="list-group-item @(currentStep == 1 ? "active" : "")">1. Basic Setup</li>
                 <li class="list-group-item @(currentStep == 2 ? "active" : "")">2. Color Assignment</li>
-                <li class="list-group-item @(currentStep == 3 ? "active" : "")">3. Town & Gold</li>
-                <li class="list-group-item @(currentStep == 4 ? "active" : "")">4. Review</li>
+                <li class="list-group-item @(currentStep == 3 ? "active" : "")">3. Town Pool</li>
+                <li class="list-group-item @(currentStep == 4 ? "active" : "")">4. Town & Gold</li>
+                <li class="list-group-item @(currentStep == 5 ? "active" : "")">5. Review</li>
             </ol>
         </nav>
     </div>
@@ -140,7 +141,76 @@ else
     {
         <div class="card">
             <div class="card-body">
-                <h3>Step 3: Town, Hero & Gold Trading</h3>
+                <h3>Step 3: Town Pool Selection</h3>
+                <p class="text-muted">Ban unwanted towns and select @playerCount towns for the trading pool.</p>
+                
+                <div class="row">
+                    <!-- Ban Towns Section -->
+                    <div class="col-md-6">
+                        <h5>Ban Towns (Optional)</h5>
+                        <p class="small text-muted">You can ban up to @GetMaxBannableCount() towns. Banned: @bannedTowns.Count</p>
+                        <div style="max-height: 400px; overflow-y: auto;">
+                            @foreach (var town in allTowns.OrderBy(t => t.Name))
+                            {
+                                var isBanned = bannedTowns.Contains(town.Id);
+                                var canToggleBan = isBanned || bannedTowns.Count < GetMaxBannableCount();
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" 
+                                           checked="@isBanned"
+                                           disabled="@(!canToggleBan)"
+                                           @onchange="@(() => ToggleBanTown(town.Id))" />
+                                    <label class="form-check-label @(isBanned ? "text-muted text-decoration-line-through" : "")">
+                                        @town.Name
+                                    </label>
+                                </div>
+                            }
+                        </div>
+                    </div>
+
+                    <!-- Select Towns Section -->
+                    <div class="col-md-6">
+                        <h5>Select Towns for Trading Pool</h5>
+                        <p class="small text-muted">Selected: @selectedTownsPool.Count / @playerCount required</p>
+                        
+                        <button class="btn btn-primary mb-3 w-100" @onclick="RandomizeTownPool">
+                            <span class="oi oi-random"></span> Randomize Town Pool
+                        </button>
+
+                        <div style="max-height: 400px; overflow-y: auto;">
+                            @foreach (var town in GetAvailableTowns().OrderBy(t => t.Name))
+                            {
+                                var isSelected = selectedTownsPool.Contains(town.Id);
+                                var canToggleSelect = isSelected || selectedTownsPool.Count < playerCount;
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" 
+                                           checked="@isSelected"
+                                           disabled="@(!canToggleSelect)"
+                                           @onchange="@(() => ToggleSelectTown(town.Id))" />
+                                    <label class="form-check-label @(isSelected ? "fw-bold text-primary" : "")">
+                                        @town.Name
+                                    </label>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mt-3">
+                    <button class="btn btn-secondary me-2" @onclick="PreviousStep">
+                        <span class="oi oi-chevron-left"></span> Back
+                    </button>
+                    <button class="btn btn-primary" @onclick="NextStep" disabled="@(!CanProceedFromStep3())">
+                        Next <span class="oi oi-chevron-right"></span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    }
+    else if (currentStep == 4)
+    {
+        <div class="card">
+            <div class="card-body">
+                <h3>Step 4: Town, Hero & Gold Trading</h3>
                 <div class="row">
                     <!-- Left Block: Assignment -->
                     <div class="col-md-6">
@@ -158,7 +228,7 @@ else
                                         <label class="form-label">Town</label>
                                         <select class="form-select" @bind="assignment.TownId" @bind:after="@(() => OnTownChanged(index))">
                                             <option value="0">Select Town...</option>
-                                            @foreach (var town in allTowns)
+                                            @foreach (var town in GetSelectedTowns())
                                             {
                                                 <option value="@town.Id">@town.Name</option>
                                             }
@@ -275,18 +345,18 @@ else
                     <button class="btn btn-secondary me-2" @onclick="PreviousStep">
                         <span class="oi oi-chevron-left"></span> Back
                     </button>
-                    <button class="btn btn-primary" @onclick="NextStep" disabled="@(!CanProceedFromStep3())">
+                    <button class="btn btn-primary" @onclick="NextStep" disabled="@(!CanProceedFromStep4())">
                         Next <span class="oi oi-chevron-right"></span>
                     </button>
                 </div>
             </div>
         </div>
     }
-    else if (currentStep == 4)
+    else if (currentStep == 5)
     {
         <div class="card">
             <div class="card-body">
-                <h3>Step 4: Review & Confirm</h3>
+                <h3>Step 5: Review & Confirm</h3>
                 <div class="mb-3">
                     <strong>Map:</strong> @mapName
                 </div>
@@ -358,6 +428,10 @@ else
     private List<PlayerAssignment> playerAssignments = new();
     private List<Town> allTowns = new();
     private List<Hero> allHeroes = new();
+    
+    // Town pool selection state
+    private HashSet<int> bannedTowns = new();
+    private List<int> selectedTownsPool = new();
 
     protected override async Task OnInitializedAsync()
     {
@@ -418,7 +492,67 @@ else
 
     private bool CanProceedFromStep3()
     {
+        return selectedTownsPool.Count == playerCount;
+    }
+
+    private bool CanProceedFromStep4()
+    {
         return playerAssignments.All(p => p.TownId > 0);
+    }
+
+    private int GetMaxBannableCount()
+    {
+        return allTowns.Count - playerCount;
+    }
+
+    private List<Town> GetAvailableTowns()
+    {
+        return allTowns.Where(t => !bannedTowns.Contains(t.Id)).ToList();
+    }
+
+    private List<Town> GetSelectedTowns()
+    {
+        return allTowns.Where(t => selectedTownsPool.Contains(t.Id)).OrderBy(t => t.Name).ToList();
+    }
+
+    private void ToggleBanTown(int townId)
+    {
+        if (bannedTowns.Contains(townId))
+        {
+            bannedTowns.Remove(townId);
+        }
+        else if (bannedTowns.Count < GetMaxBannableCount())
+        {
+            bannedTowns.Add(townId);
+            // If this town was selected, remove it from selection
+            if (selectedTownsPool.Contains(townId))
+            {
+                selectedTownsPool.Remove(townId);
+            }
+        }
+    }
+
+    private void ToggleSelectTown(int townId)
+    {
+        if (selectedTownsPool.Contains(townId))
+        {
+            selectedTownsPool.Remove(townId);
+        }
+        else if (selectedTownsPool.Count < playerCount)
+        {
+            selectedTownsPool.Add(townId);
+        }
+    }
+
+    private void RandomizeTownPool()
+    {
+        var availableTowns = GetAvailableTowns();
+        var random = new Random();
+        selectedTownsPool = availableTowns
+            .OrderBy(x => random.Next())
+            .Take(playerCount)
+            .Select(t => t.Id)
+            .ToList();
     }
 
     private void NextStep()
@@ -454,6 +588,10 @@ else
         }
         else if (currentStep == 3 && CanProceedFromStep3())
         {
+            currentStep = 4;
+        }
+        else if (currentStep == 4 && CanProceedFromStep4())
+        {
             // Prepare review data
             foreach (var assignment in playerAssignments)
             {
@@ -463,7 +601,7 @@ else
                     assignment.HeroName = allHeroes.FirstOrDefault(h => h.Id == assignment.HeroId)?.Name;
                 }
             }
-            currentStep = 4;
+            currentStep = 5;
         }
     }
 

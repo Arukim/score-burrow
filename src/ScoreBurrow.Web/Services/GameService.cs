@@ -209,6 +209,9 @@ public class GameService : IGameService
 
         await _context.SaveChangesAsync();
 
+        // Invalidate league cache to refresh statistics
+        _leagueService.InvalidateLeagueCache(game.LeagueId);
+
         return true;
     }
 

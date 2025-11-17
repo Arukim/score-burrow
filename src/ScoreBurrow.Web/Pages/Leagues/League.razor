@@ -13,6 +13,7 @@
 @inject IMemoryCache MemoryCache
 @inject NavigationManager NavigationManager
 @inject ILeagueService LeagueService
+@inject ILeagueStatisticsService StatisticsService
 @inject AuthenticationStateProvider AuthenticationStateProvider
 
 <h1>League @(league?.Name ?? "Unknown")</h1>
@@ -121,6 +122,168 @@ else
             }
         </div>
     </div>
+
+    <!-- Town/Hero Statistics Section -->
+    <div class="row mb-5">
+        <div class="col-12">
+            <h2 class="mb-3">Town & Hero Meta (Last 365 Days)</h2>
+            @if (townStats == null)
+            {
+                <p><em>Loading statistics...</em></p>
+            }
+            else if (!townStats.Any())
+            {
+                <div class="alert alert-info">
+                    <em>No statistics available. Play some games to see town and hero performance data.</em>
+                </div>
+            }
+            else
+            {
+                var sortedTowns = townStats.OrderByDescending(t => t.WinRate).Take(10).ToList();
+
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Town</th>
+                                <th>Games</th>
+                                <th>Win Rate</th>
+                                <th>W/L</th>
+                                <th>Avg Gold</th>
+                                <th>Median Gold</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var (town, index) in sortedTowns.Select((t, i) => (t, i)))
+                            {
+                                <tr>
+                                    <td>
+                                        <strong>@town.TownName</strong>
+                                        @if (town.ValueCategory.HasValue)
+                                        {
+                                            <span class="ms-1 badge @(town.ValueCategory == ScoreBurrow.Web.Models.TownValueCategory.Undervalued ? "bg-info" : "bg-danger")"
+                                                  title="@(town.ValueCategory == ScoreBurrow.Web.Models.TownValueCategory.Undervalued ? "Undervalued - Good performance for the gold cost" : "Overhyped - Expensive but low win rate")">
+                                                @(town.ValueCategory == ScoreBurrow.Web.Models.TownValueCategory.Undervalued ? "⭐" : "⚠️")
+                                            </span>
+                                        }
+                                    </td>
+                                    <td><span class="badge bg-secondary">@town.GamesPlayed</span></td>
+                                    <td>
+                                        <span class="badge @GetWinRateBadgeClass(index, sortedTowns.Count)">
+                                            @town.WinRate.ToString("F1")%
+                                        </span>
+                                    </td>
+                                    <td><small>@town.Wins/@(town.GamesPlayed - town.Wins)</small></td>
+                                    <td><small>@town.AvgGoldTrade</small></td>
+                                    <td><small>@town.MedianGoldTrade</small></td>
+                                    <td>
+                                        <button class="btn btn-sm btn-outline-primary" type="button"
+                                                onclick="toggleTownStats(this, '@town.TownName.Replace("'", "\\'")')">
+                                            Details ▼
+                                        </button>
+                                    </td>
+                                </tr>
+                                <tr class="town-details-row" style="display: none;">
+                                    <td colspan="7" class="p-3 bg-light border-0">
+                                        <div class="row">
+                                            <div class="col-md-4">
+                                                <h6>Hero Performance</h6>
+                                                @if (town.TopWinningHeroes.Any())
+                                                {
+                                                    <ul class="small list-unstyled">
+                                                        @foreach (var hero in town.TopWinningHeroes.Take(3))
+                                                        {
+                                                            <li>
+                                                                <strong>@hero.HeroName</strong>
+                                                                - @hero.WinRate.ToString("F0")% WR (@hero.GamesPlayed games)
+                                                            </li>
+                                                        }
+                                                    </ul>
+                                                }
+                                                else
+                                                {
+                                                    <em>No hero data available</em>
+                                                }
+                                            </div>
+                                            <div class="col-md-4">
+                                                <h6>Most Popular Players</h6>
+                                                @if (town.TopPlayers.Any())
+                                                {
+                                                    <ul class="small list-unstyled">
+                                                        @foreach (var player in town.TopPlayers.Take(3))
+                                                        {
+                                                            <li>
+                                                                <strong>@(string.IsNullOrEmpty(player.PlayerDisplayName) ? player.PlayerNickname : player.PlayerDisplayName)</strong>
+                                                                @if (player.IsUnregistered)
+                                                                {
+                                                                    <span class="badge bg-warning ms-1">Unreg.</span>
+                                                                }
+                                                                <br>
+                                                                <small class="text-muted">@player.GamesPlayed games</small>
+                                                            </li>
+                                                        }
+                                                    </ul>
+                                                }
+                                                else
+                                                {
+                                                    <em>No player data available</em>
+                                                }
+                                            </div>
+                                            <div class="col-md-4">
+                                                <h6>Best Performers</h6>
+                                                @if (town.BestPlayers.Any())
+                                                {
+                                                    <ul class="small list-unstyled">
+                                                        @foreach (var player in town.BestPlayers.Take(3))
+                                                        {
+                                                            <li>
+                                                                <strong>@(string.IsNullOrEmpty(player.PlayerDisplayName) ? player.PlayerNickname : player.PlayerDisplayName)</strong>
+                                                                @if (player.IsUnregistered)
+                                                                {
+                                                                    <span class="badge bg-warning ms-1">Unreg.</span>
+                                                                }
+                                                                <br>
+                                                                <small class="text-muted">@player.WinRate.ToString("F1")% WR (@player.GamesPlayed games)</small>
+                                                            </li>
+                                                        }
+                                                    </ul>
+                                                }
+                                                else
+                                                {
+                                                    <em>No player data available</em>
+                                                }
+                                            </div>
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+
+                @if (townStats.Count > 10)
+                {
+                    <p class="text-muted small">Showing top 10 towns by win rate. More towns may be available as more games are played.</p>
+                }
+            }
+        </div>
+    </div>
+
+<script>
+function toggleTownStats(button, townName) {
+    const row = button.closest('tr').nextElementSibling;
+    const isHidden = row.style.display === 'none';
+
+    if (isHidden) {
+        row.style.display = 'table-row';
+        button.innerHTML = 'Details ▲';
+    } else {
+        row.style.display = 'none';
+        button.innerHTML = 'Details ▼';
+    }
+}
+</script>
 
     <!-- Games Section -->
     <div class="row">
@@ -231,6 +394,7 @@ else
     private ScoreBurrow.Data.Entities.League? league;
     private List<TopPlayerView>? topPlayers;
     private List<GameView>? games;
+    private List<ScoreBurrow.Web.Models.TownStatisticsDto>? townStats;
     private bool isLoading = true;
     private bool canManageLeague = false;
     private string? userId;
@@ -252,6 +416,13 @@ else
         }
         
         await LoadDataAsync();
+        
+        // Load town statistics separately (async, don't block page load)
+        if (league != null)
+        {
+            townStats = await StatisticsService.GetLeagueTownStatisticsAsync(LeagueId);
+        }
+        
         isLoading = false;
     }
 
@@ -433,6 +604,17 @@ else
             GameStatus.Cancelled => "Cancelled",
             _ => "Unknown"
         };
+    }
+
+    private string GetWinRateBadgeClass(int index, int totalCount)
+    {
+        // Assign colors based on quartiles (relative performance)
+        var percentile = (double)index / Math.Max(totalCount - 1, 1);
+        
+        if (percentile <= 0.25) return "bg-success";      // Top 25% - Green
+        if (percentile <= 0.50) return "bg-info";         // 25-50% - Blue
+        if (percentile <= 0.75) return "bg-warning";      // 50-75% - Yellow
+        return "bg-danger";                                // Bottom 25% - Red
     }
 
     private class LeagueData

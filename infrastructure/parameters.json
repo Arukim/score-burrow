@@ -21,7 +21,7 @@
       "value": "CHANGE_ME_BEFORE_DEPLOY"
     },
     "sqlDatabaseName": {
-      "value": "ScoreBurrowDb"
+      "value": "ScoreBurrowDbDev"
     }
   }
 }

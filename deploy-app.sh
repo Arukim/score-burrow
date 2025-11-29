@@ -98,9 +98,18 @@ echo ""
 
 # Create deployment package
 echo -e "${YELLOW}Creating deployment package...${NC}"
-cd "$PUBLISH_PATH"
-zip -r "$DEPLOYMENT_PACKAGE" . > /dev/null
-cd - > /dev/null
+
+# Check if running on Windows (Git Bash/MINGW/MSYS)
+if [[ "$OSTYPE" == "msys" || "$OSTYPE" == "win32" || "$OSTYPE" == "cygwin" ]]; then
+    # Use PowerShell on Windows
+    powershell.exe -Command "Compress-Archive -Path '$PUBLISH_PATH/*' -DestinationPath '$DEPLOYMENT_PACKAGE' -Force"
+else
+    # Use zip on Linux/Mac
+    cd "$PUBLISH_PATH"
+    zip -r "$DEPLOYMENT_PACKAGE" . > /dev/null
+    cd - > /dev/null
+fi
+
 echo -e "${GREEN}✓ Deployment package created: $(basename $DEPLOYMENT_PACKAGE)${NC}"
 echo ""
 

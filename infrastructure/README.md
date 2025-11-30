@@ -6,8 +6,7 @@ This directory contains the Azure infrastructure configuration for the Score Bur
 
 The infrastructure deploys:
 - **App Service** (Free tier F1) - Hosts the .NET 8 web application
-- **SQL Server & Database** (Basic tier - free tier eligible) - Relational database
-- **CosmosDB** (Free tier enabled) - NoSQL database
+- **SQL Server & Database** (Serverless Gen5 with free tier) - Relational database
 - **Managed Identity** - For secure, credential-free authentication
 - **Firewall Rules** - Network security for database access
 
@@ -27,13 +26,8 @@ The App Service is configured with a **System-Assigned Managed Identity**, which
   - App Service outbound IPs whitelisted
   - Public access enabled with IP restrictions
 - **TLS 1.2** minimum encryption
-- **Basic Tier**: Free tier eligible, 2GB max storage
+- **Serverless Gen5**: Free tier with 2 vCores, 32GB max storage, auto-pause after 60 minutes
 
-### CosmosDB Security
-- **Built-in Data Contributor Role**: Granted to Managed Identity
-- **IP Firewall**: App Service outbound IPs whitelisted
-- **Free Tier**: 400 RU/s and 5GB storage free
-- **Public access** with IP restrictions
 
 ## Prerequisites
 
@@ -113,7 +107,6 @@ Key outputs:
 - `appServicePrincipalId` - Managed Identity ID
 - `sqlServerFqdn` - SQL Server endpoint
 - `sqlConnectionString` - Connection string for SQL with Managed Identity
-- `cosmosDbEndpoint` - CosmosDB endpoint
 
 ## Post-Deployment Configuration
 
@@ -127,15 +120,7 @@ az webapp config connection-string set \
   --resource-group score-burrow-rg \
   --name score-burrow-app-dev \
   --connection-string-type SQLAzure \
-  --settings DefaultConnection="Server=tcp:score-burrow-sql-dev.database.windows.net,1433;Database=ScoreBurrowDb;Authentication=Active Directory Default;"
-```
-
-#### CosmosDB Connection
-```bash
-az webapp config appsettings set \
-  --resource-group score-burrow-rg \
-  --name score-burrow-app-dev \
-  --settings CosmosDb__Endpoint="https://score-burrow-cosmos-dev.documents.azure.com:443/"
+  --settings DefaultConnection="Server=tcp:score-burrow-sql-dev.database.windows.net,1433;Database=ScoreBurrowDbDev;Authentication=Active Directory Default;"
 ```
 
 ### 2. Application Code Changes
@@ -166,24 +151,6 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
 });
 ```
 
-#### CosmosDB (in `Program.cs` or `Startup.cs`)
-```csharp
-// Add NuGet packages:
-// - Azure.Identity
-// - Microsoft.Azure.Cosmos
-
-using Azure.Identity;
-using Microsoft.Azure.Cosmos;
-
-var cosmosEndpoint = builder.Configuration["CosmosDb:Endpoint"];
-var credential = new DefaultAzureCredential();
-
-builder.Services.AddSingleton<CosmosClient>(sp =>
-{
-    return new CosmosClient(cosmosEndpoint, credential);
-});
-```
-
 ### 3. Test Connectivity
 
 After deploying your application:
@@ -201,17 +168,13 @@ az webapp log tail \
 
 ## Free Tier Limits
 
-### SQL Server Basic Tier
+### SQL Server Serverless (General Purpose Gen5)
 - ✅ Free tier eligible
-- 2 GB maximum database size
-- 5 DTU (Database Transaction Units)
-- Best for development and small workloads
-
-### CosmosDB Free Tier
-- ✅ First 400 RU/s free (per subscription)
-- ✅ First 5 GB storage free
-- Only one free tier account per subscription
-- Ideal for development and testing
+- 32 GB maximum database size
+- 2 vCores capacity
+- 0.5 vCores minimum when active
+- Auto-pause after 60 minutes of inactivity
+- Best for development and intermittent workloads
 
 ### App Service F1 (Free Tier)
 - 60 CPU minutes/day
@@ -220,7 +183,7 @@ az webapp log tail \
 - No custom domains or SSL
 - Goes to sleep after 20 minutes of inactivity
 
-**Note**: You can only have one free tier CosmosDB account per Azure subscription. If you already have one, set `enableFreeTier: false` in the deployment.
+**Note**: Azure SQL Database free tier provides 32GB storage and 100,000 vCore seconds of compute per month, which is ideal for development and testing.
 
 ## Security Best Practices
 

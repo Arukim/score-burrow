@@ -36,7 +36,7 @@ echo "Firewall rule added for IP: $MY_IP"
 From your `infrastructure/parameters.local.json` file:
 
 - **Server**: `score-burrow-sql-dev.database.windows.net`
-- **Database**: `ScoreBurrowDb`
+- **Database**: `ScoreBurrowDbDev`
 - **Admin Username**: Value from `sqlAdminLogin` parameter
 - **Admin Password**: Value from `sqlAdminPassword` parameter
 
@@ -52,7 +52,7 @@ From your `infrastructure/parameters.local.json` file:
    - **Authentication type**: SQL Login
    - **User name**: (from parameters.local.json)
    - **Password**: (from parameters.local.json)
-   - **Database**: `ScoreBurrowDb`
+   - **Database**: `ScoreBurrowDbDev`
    - **Encrypt**: True
    - **Trust server certificate**: False
 4. Click **Connect**
@@ -74,7 +74,7 @@ Update your `appsettings.Development.json`:
 ```json
 {
   "ConnectionStrings": {
-    "DefaultConnection": "Server=tcp:score-burrow-sql-dev.database.windows.net,1433;Initial Catalog=ScoreBurrowDb;Persist Security Info=False;User ID=<username>;Password=<password>;MultipleActiveResultSets=False;Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;"
+    "DefaultConnection": "Server=tcp:score-burrow-sql-dev.database.windows.net,1433;Initial Catalog=ScoreBurrowDbDev;Persist Security Info=False;User ID=<username>;Password=<password>;MultipleActiveResultSets=False;Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;"
   }
 }
 ```

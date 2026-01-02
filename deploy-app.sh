@@ -99,16 +99,20 @@ echo ""
 # Create deployment package
 echo -e "${YELLOW}Creating deployment package...${NC}"
 
-# Check if running on Windows (Git Bash/MINGW/MSYS)
-if [[ "$OSTYPE" == "msys" || "$OSTYPE" == "win32" || "$OSTYPE" == "cygwin" ]]; then
-    # Use PowerShell on Windows
-    powershell.exe -Command "Compress-Archive -Path '$PUBLISH_PATH/*' -DestinationPath '$DEPLOYMENT_PACKAGE' -Force"
-else
-    # Use zip on Linux/Mac
-    cd "$PUBLISH_PATH"
-    zip -r "$DEPLOYMENT_PACKAGE" . > /dev/null
-    cd - > /dev/null
-fi
+# Create deployment package with correct path separators for Azure Linux
+PUBLISH_PATH_WIN=$(cygpath -w "$PUBLISH_PATH")
+DEPLOYMENT_PACKAGE_WIN=$(cygpath -w "$DEPLOYMENT_PACKAGE")
+
+# Use PowerShell to create ZIP with forward slashes in paths
+powershell.exe -Command "
+Add-Type -AssemblyName System.IO.Compression.FileSystem
+\$zip = [System.IO.Compression.ZipFile]::Open('$DEPLOYMENT_PACKAGE_WIN', 'Create')
+Get-ChildItem '$PUBLISH_PATH_WIN' -Recurse -File | ForEach-Object {
+    \$relativePath = \$_.FullName.Substring('$PUBLISH_PATH_WIN'.Length).TrimStart('\').Replace('\', '/')
+    [System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile(\$zip, \$_.FullName, \$relativePath)
+}
+\$zip.Dispose()
+"
 
 echo -e "${GREEN}✓ Deployment package created: $(basename $DEPLOYMENT_PACKAGE)${NC}"
 echo ""
@@ -123,6 +127,7 @@ az webapp deploy \
     --name $APP_SERVICE_NAME \
     --src-path "$DEPLOYMENT_PACKAGE" \
     --type zip \
+    --clean true \
     --async false
 
 echo ""

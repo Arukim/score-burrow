@@ -155,8 +155,8 @@ dotnet test
   - Town and hero performance statistics
   - Rating history visualization
 - ✅ **HoMM3 Reference Data**:
-  - 9 towns/factions (Castle, Rampart, Tower, Inferno, Necropolis, Dungeon, Stronghold, Fortress, Conflux)
-  - 144 heroes with town affiliations
+  - 12 towns/factions (Castle, Rampart, Tower, Inferno, Necropolis, Dungeon, Stronghold, Fortress, Conflux, Cove, Factory, Bulwark)
+  - 161 heroes with town affiliations
   - 8-color player system (Red, Blue, Tan, Green, Orange, Purple, Teal, Pink)
 - ✅ **Data Import Tool**:
   - CSV import for historical games
@@ -308,6 +308,7 @@ See [Infrastructure README](infrastructure/README.md) for detailed deployment do
 - [x] Color-adjusted win rate statistics
 - [x] Color distribution analysis by game size
 - [x] Town pool selection in game wizard
+- [x] Added Bulwark town and 17 heroes (Chieftain and Elder classes)
 
 ### In Progress
 - [ ] Game editing and management UI

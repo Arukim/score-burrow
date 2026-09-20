@@ -83,5 +83,5 @@ public interface ILeagueService
     /// <summary>
     /// Invalidate all cached data for a league (called after game completion, etc.)
     /// </summary>
-    void InvalidateLeagueCache(Guid leagueId);
+    void InvalidateLeagueCache(Guid leagueId, string? userId = null);
 }

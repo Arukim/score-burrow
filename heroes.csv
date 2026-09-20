@@ -1,0 +1,216 @@
+Hero Name,Hero Class,Town
+Orrin,Knight,Castle
+Valeska,Knight,Castle
+Edric,Knight,Castle
+Sylvia,Knight,Castle
+Lord Haart,Knight,Castle
+Sorsha,Knight,Castle
+Christian,Knight,Castle
+Tyris,Knight,Castle
+Beatrice,Knight,Castle
+Sir Mullich,Knight,Castle
+Catherine,Knight,Castle
+Roland,Knight,Castle
+Adela,Cleric,Castle
+Cuthbert,Cleric,Castle
+Adelaide,Cleric,Castle
+Ingham,Cleric,Castle
+Sanya,Cleric,Castle
+Loynis,Cleric,Castle
+Caitlin,Cleric,Castle
+Rion,Cleric,Castle
+Mephala,Ranger,Rampart
+Ufretin,Ranger,Rampart
+Jenova,Ranger,Rampart
+Ryland,Ranger,Rampart
+Thorgrim,Ranger,Rampart
+Giselle,Ranger,Rampart
+Ivor,Ranger,Rampart
+Clancy,Ranger,Rampart
+Kyrre,Ranger,Rampart
+Gelu,Ranger,Rampart
+Coronius,Druid,Rampart
+Uland,Druid,Rampart
+Elleshar,Druid,Rampart
+Gem,Druid,Rampart
+Malcom,Druid,Rampart
+Melodia,Druid,Rampart
+Alagar,Druid,Rampart
+Aeris,Druid,Rampart
+Piquedram,Alchemist,Tower
+Thane,Alchemist,Tower
+Josephine,Alchemist,Tower
+Neela,Alchemist,Tower
+Torosar,Alchemist,Tower
+Fafner,Alchemist,Tower
+Rissa,Alchemist,Tower
+Iona,Alchemist,Tower
+Astral,Wizard,Tower
+Halon,Wizard,Tower
+Serena,Wizard,Tower
+Daremyth,Wizard,Tower
+Theodorus,Wizard,Tower
+Solmyr,Wizard,Tower
+Cyra,Wizard,Tower
+Aine,Wizard,Tower
+Dracon,Wizard,Tower
+Fiona,Demoniac,Inferno
+Rashka,Demoniac,Inferno
+Marius,Demoniac,Inferno
+Ignatius,Demoniac,Inferno
+Octavia,Demoniac,Inferno
+Calh,Demoniac,Inferno
+Pyre,Demoniac,Inferno
+Nymus,Demoniac,Inferno
+Xeron,Demoniac,Inferno
+Ayden,Heretic,Inferno
+Xyron,Heretic,Inferno
+Axsis,Heretic,Inferno
+Olema,Heretic,Inferno
+Calid,Heretic,Inferno
+Ash,Heretic,Inferno
+Zydar,Heretic,Inferno
+Xarfax,Heretic,Inferno
+Straker,Death Knight,Necropolis
+Vokial,Death Knight,Necropolis
+Moandor,Death Knight,Necropolis
+Charna,Death Knight,Necropolis
+Tamika,Death Knight,Necropolis
+Isra,Death Knight,Necropolis
+Clavius,Death Knight,Necropolis
+Galthran,Death Knight,Necropolis
+Ranloo,Death Knight,Necropolis
+Haart Lich,Death Knight,Necropolis
+Septienna,Necromancer,Necropolis
+Aislinn,Necromancer,Necropolis
+Sandro,Necromancer,Necropolis
+Nimbus,Necromancer,Necropolis
+Thant,Necromancer,Necropolis
+Xsi,Necromancer,Necropolis
+Vidomina,Necromancer,Necropolis
+Nagash,Necromancer,Necropolis
+Lorelei,Overlord,Dungeon
+Arlach,Overlord,Dungeon
+Dace,Overlord,Dungeon
+Ajit,Overlord,Dungeon
+Damacon,Overlord,Dungeon
+Gunnar,Overlord,Dungeon
+Synca,Overlord,Dungeon
+Shakti,Overlord,Dungeon
+Mutare,Overlord,Dungeon
+Mutare Drake,Overlord,Dungeon
+Alamar,Warlock,Dungeon
+Jaegar,Warlock,Dungeon
+Malekith,Warlock,Dungeon
+Jeddite,Warlock,Dungeon
+Geon,Warlock,Dungeon
+Deemer,Warlock,Dungeon
+Sephinroth,Warlock,Dungeon
+Darkstorn,Warlock,Dungeon
+Yog,Barbarian,Stronghold
+Gurnisson,Barbarian,Stronghold
+Jabarkas,Barbarian,Stronghold
+Shiva,Barbarian,Stronghold
+Gretchin,Barbarian,Stronghold
+Krellion,Barbarian,Stronghold
+Crag Hack,Barbarian,Stronghold
+Tyraxor,Barbarian,Stronghold
+Boragus,Barbarian,Stronghold
+Kilgor,Barbarian,Stronghold
+Gird,Battle Mage,Stronghold
+Vey,Battle Mage,Stronghold
+Dessa,Battle Mage,Stronghold
+Terek,Battle Mage,Stronghold
+Zubin,Battle Mage,Stronghold
+Gundula,Battle Mage,Stronghold
+Oris,Battle Mage,Stronghold
+Saurug,Battle Mage,Stronghold
+Bron,Beastmaster,Fortress
+Drakon,Beastmaster,Fortress
+Wystan,Beastmaster,Fortress
+Tazar,Beastmaster,Fortress
+Alkin,Beastmaster,Fortress
+Korbac,Beastmaster,Fortress
+Gerwulf,Beastmaster,Fortress
+Broghild,Beastmaster,Fortress
+Mirlanda,Witch,Fortress
+Rosic,Witch,Fortress
+Voy,Witch,Fortress
+Kinkeria,Witch,Fortress
+Verdish,Witch,Fortress
+Merist,Witch,Fortress
+Styg,Witch,Fortress
+Andra,Witch,Fortress
+Tiva,Witch,Fortress
+Adrienne,Witch,Fortress
+Pasis,Planeswalker,Conflux
+Thunar,Planeswalker,Conflux
+Ignissa,Planeswalker,Conflux
+Lacus,Planeswalker,Conflux
+Monere,Planeswalker,Conflux
+Erdamon,Planeswalker,Conflux
+Fiur,Planeswalker,Conflux
+Kalt,Planeswalker,Conflux
+Luna,Elementalist,Conflux
+Brissa,Elementalist,Conflux
+Ciele,Elementalist,Conflux
+Labetha,Elementalist,Conflux
+Inteus,Elementalist,Conflux
+Aenain,Elementalist,Conflux
+Gelare,Elementalist,Conflux
+Grindan,Elementalist,Conflux
+Corkes,Captain,Cove
+Jeremy,Captain,Cove
+Illor,Captain,Cove
+Derek,Captain,Cove
+Elmore,Captain,Cove
+Leena,Captain,Cove
+Anabel,Captain,Cove
+Cassiopeia,Captain,Cove
+Miriam,Captain,Cove
+Tark,Captain,Cove
+Bidley,Captain,Cove
+Manfred,Navigator,Cove
+Zilare,Navigator,Cove
+Astra,Navigator,Cove
+Casmetra,Navigator,Cove
+Dargem,Navigator,Cove
+Andal,Navigator,Cove
+Eovacius,Navigator,Cove
+Spint,Navigator,Cove
+Henrietta,Mercenary,Factory
+Sam,Mercenary,Factory
+Tancred,Mercenary,Factory
+Melchior,Mercenary,Factory
+Floribert,Mercenary,Factory
+Wynona,Mercenary,Factory
+Dury,Mercenary,Factory
+Morton,Mercenary,Factory
+Tavin,Mercenary,Factory
+Murdoch,Mercenary,Factory
+Celestine,Artificer,Factory
+Todd,Artificer,Factory
+Agar,Artificer,Factory
+Bertram,Artificer,Factory
+Wrathmont,Artificer,Factory
+Ziph,Artificer,Factory
+Victoria,Artificer,Factory
+Eanswythe,Artificer,Factory
+Frederick,Artificer,Factory
+Dhuin,Chieftain,Bulwark
+Oidana,Chieftain,Bulwark
+Neia,Chieftain,Bulwark
+Eikthurn,Chieftain,Bulwark
+Creyle,Chieftain,Bulwark
+Spadum,Chieftain,Bulwark
+Kynr,Chieftain,Bulwark
+Ergon,Chieftain,Bulwark
+Kriv,Elder,Bulwark
+Glacius,Elder,Bulwark
+Sial,Elder,Bulwark
+Dalton,Elder,Bulwark
+Biarma,Elder,Bulwark
+Akka,Elder,Bulwark
+Vehr,Elder,Bulwark
+Allora,Elder,Bulwark
+Haugir,Elder,Bulwark

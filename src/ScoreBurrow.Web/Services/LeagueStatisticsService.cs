@@ -44,7 +44,8 @@ public class LeagueStatisticsService : ILeagueStatisticsService
             .Include(gp => gp.LeagueMembership)
             .Where(gp => gp.Game.LeagueId == leagueId
                 && gp.Game.Status == GameStatus.Completed
-                && gp.Game.StartTime >= cutoffDate)
+                && gp.Game.StartTime >= cutoffDate
+                && !gp.Game.Participants.Any(p => p.IsTechnicalLoss))
             .ToListAsync();
 
         if (participants.Count == 0)
@@ -171,7 +172,8 @@ public class LeagueStatisticsService : ILeagueStatisticsService
             .Include(gp => gp.Hero)
             .Where(gp => gp.LeagueMembershipId == leagueMembershipId
                 && gp.Game.Status == GameStatus.Completed
-                && gp.Game.StartTime >= cutoffDate)
+                && gp.Game.StartTime >= cutoffDate
+                && !gp.Game.Participants.Any(p => p.IsTechnicalLoss))
             .ToListAsync();
 
         var result = new PlayerPerformanceDto
@@ -424,7 +426,8 @@ public class LeagueStatisticsService : ILeagueStatisticsService
             .Include(g => g.Participants)
             .Where(g => g.LeagueId == leagueId
                 && g.Status == GameStatus.Completed
-                && g.StartTime >= cutoffDate)
+                && g.StartTime >= cutoffDate
+                && !g.Participants.Any(p => p.IsTechnicalLoss))
             .ToListAsync();
 
         if (!gamesWithParticipants.Any())

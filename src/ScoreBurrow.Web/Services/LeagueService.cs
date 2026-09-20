@@ -641,7 +641,7 @@ public class LeagueService : ILeagueService
         return true;
     }
 
-    public void InvalidateLeagueCache(Guid leagueId)
+    public void InvalidateLeagueCache(Guid leagueId, string? userId = null)
     {
         // Clear league cache for all users by clearing all matching keys
         // Since we can't enumerate MemoryCache keys, we rely on cache expiration
@@ -650,15 +650,24 @@ public class LeagueService : ILeagueService
         // Clear generic league cache
         _memoryCache.Remove($"league_{leagueId}");
         _memoryCache.Remove($"league_{leagueId}_anonymous");
+        if (!string.IsNullOrEmpty(userId))
+        {
+            _memoryCache.Remove($"league_{leagueId}_{userId}");
+        }
         
         // Clear leagues list cache (all pages)
         for (int i = 1; i <= 100; i++)
         {
             _memoryCache.Remove($"leagues_page_{i}");
+            if (!string.IsNullOrEmpty(userId))
+            {
+                _memoryCache.Remove($"leagues_page_{i}_{userId}");
+            }
         }
         
         // Clear league statistics cache
         _memoryCache.Remove($"league_town_stats_{leagueId}_365");
+        _memoryCache.Remove($"league_color_stats_{leagueId}_365_10");
         
         // Note: User-specific caches (including player performance) will eventually expire after 1 hour
         // To force immediate refresh, users can reload the page after cache expiration

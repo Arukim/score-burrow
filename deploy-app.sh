@@ -103,12 +103,13 @@ echo -e "${YELLOW}Creating deployment package...${NC}"
 PUBLISH_PATH_WIN=$(cygpath -w "$PUBLISH_PATH")
 DEPLOYMENT_PACKAGE_WIN=$(cygpath -w "$DEPLOYMENT_PACKAGE")
 
-# Use PowerShell to create ZIP with forward slashes in paths
+# Use PowerShell to create ZIP with correct relative paths
 powershell.exe -Command "
 Add-Type -AssemblyName System.IO.Compression.FileSystem
+\$publishPath = Resolve-Path '$PUBLISH_PATH_WIN'
 \$zip = [System.IO.Compression.ZipFile]::Open('$DEPLOYMENT_PACKAGE_WIN', 'Create')
-Get-ChildItem '$PUBLISH_PATH_WIN' -Recurse -File | ForEach-Object {
-    \$relativePath = \$_.FullName.Substring('$PUBLISH_PATH_WIN'.Length).TrimStart('\').Replace('\', '/')
+Get-ChildItem \$publishPath -Recurse -File | ForEach-Object {
+    \$relativePath = \$_.FullName.Substring(\$publishPath.Path.Length).TrimStart('\').Replace('\', '/')
     [System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile(\$zip, \$_.FullName, \$relativePath)
 }
 \$zip.Dispose()
@@ -153,7 +154,7 @@ echo ""
 
 # Clean up deployment package
 echo -e "${YELLOW}Cleaning up deployment package...${NC}"
-rm -f "$DEPLOYMENT_PACKAGE"
+# rm -f "$DEPLOYMENT_PACKAGE"
 echo -e "${GREEN}✓ Cleanup completed${NC}"
 echo ""
 

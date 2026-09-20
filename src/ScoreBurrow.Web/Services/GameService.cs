@@ -210,7 +210,7 @@ public class GameService : IGameService
         await _context.SaveChangesAsync();
 
         // Invalidate league cache to refresh statistics
-        _leagueService.InvalidateLeagueCache(game.LeagueId);
+        _leagueService.InvalidateLeagueCache(game.LeagueId, userId);
 
         return true;
     }
@@ -269,6 +269,7 @@ public class GameService : IGameService
         culpritMembership.Glicko2Rating = penaltyUpdate.NewRating.Rating;
         culpritMembership.Glicko2RatingDeviation = penaltyUpdate.NewRating.RatingDeviation;
         culpritMembership.Glicko2Volatility = penaltyUpdate.NewRating.Volatility;
+        culpritMembership.LastRatingUpdate = DateTime.UtcNow;
 
         // Create rating history for culprit
         var history = new RatingHistory
@@ -289,12 +290,40 @@ public class GameService : IGameService
 
         _context.RatingHistory.Add(history);
 
-        // Cancel current game
-        game.Status = GameStatus.Cancelled;
+        // Record the original game as a completed technical loss (not a cancel) so it
+        // counts in player statistics the same way imported technical losses do.
+        game.Status = GameStatus.Completed;
         game.EndTime = DateTime.UtcNow;
-        game.Notes = $"Cancelled due to technical loss by {culpritMembership.PlayerDisplayName ?? culpritMembership.PlayerNickname}";
+        game.Notes = $"Technical loss by {culpritMembership.PlayerDisplayName ?? culpritMembership.PlayerNickname}";
         game.ModifiedBy = userId;
         game.ModifiedOn = DateTime.UtcNow;
+
+        foreach (var participant in game.Participants)
+        {
+            var stats = await _context.PlayerStatistics
+                .FirstOrDefaultAsync(s => s.LeagueMembershipId == participant.LeagueMembershipId);
+
+            if (stats == null)
+            {
+                stats = new PlayerStatistics
+                {
+                    Id = Guid.NewGuid(),
+                    LeagueMembershipId = participant.LeagueMembershipId
+                };
+                _context.PlayerStatistics.Add(stats);
+            }
+
+            stats.GamesPlayed++;
+            if (participant.LeagueMembershipId == culpritMembershipId)
+            {
+                stats.TechnicalLosses++;
+            }
+
+            stats.WinRate = stats.GamesPlayed > 0
+                ? (decimal)stats.GamesWon * 100 / stats.GamesPlayed
+                : 0;
+            stats.LastUpdated = DateTime.UtcNow;
+        }
 
         // Create new game with same settings
         var newGame = new Game
@@ -347,6 +376,8 @@ public class GameService : IGameService
         }
 
         await _context.SaveChangesAsync();
+
+        _leagueService.InvalidateLeagueCache(game.LeagueId, userId);
 
         return newGame.Id;
     }

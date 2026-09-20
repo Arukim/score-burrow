@@ -204,6 +204,7 @@ else
     private GameDetailsDto? game;
     private Guid selectedWinnerId = Guid.Empty;
     private Guid selectedCulpritId = Guid.Empty;
+    private Guid loadedGameId;
 
     protected override async Task OnInitializedAsync()
     {
@@ -213,13 +214,29 @@ else
         if (user.Identity?.IsAuthenticated ?? false)
         {
             userId = user.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        }
+    }
 
-            if (!string.IsNullOrEmpty(userId))
-            {
-                await LoadGameAsync();
-            }
+    protected override async Task OnParametersSetAsync()
+    {
+        if (string.IsNullOrEmpty(userId))
+        {
+            isLoading = false;
+            return;
         }
 
+        // Blazor reuses this page when applying a technical loss navigates to the restarted game.
+        if (loadedGameId == GameId && game != null)
+        {
+            return;
+        }
+
+        isLoading = true;
+        errorMessage = null;
+        selectedWinnerId = Guid.Empty;
+        selectedCulpritId = Guid.Empty;
+        await LoadGameAsync();
+        loadedGameId = GameId;
         isLoading = false;
     }
 

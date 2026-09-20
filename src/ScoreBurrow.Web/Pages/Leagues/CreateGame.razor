@@ -92,48 +92,203 @@ else
         <div class="card">
             <div class="card-body">
                 <h3>Step 2: Color Assignment</h3>
-                <p class="text-muted">Assign player colors. Only the first @playerCount colors are available.</p>
-                <button class="btn btn-secondary mb-3" @onclick="ShuffleColors">
-                    <span class="oi oi-random"></span> Shuffle Colors
-                </button>
-                <table class="table">
-                    <thead>
-                        <tr>
-                            <th>Player</th>
-                            <th>Color</th>
-                            <th>Position</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @for (int i = 0; i < playerAssignments.Count; i++)
-                        {
-                            var assignment = playerAssignments[i];
-                            var index = i;
+                
+                <!-- Mode Selector -->
+                <div class="mb-3">
+                    <div class="btn-group" role="group">
+                        <input type="radio" class="btn-check" id="randomMode" checked="@(colorMode == ColorAssignmentMode.Random)" @onchange="@(() => { colorMode = ColorAssignmentMode.Random; })" />
+                        <label class="btn btn-outline-primary" for="randomMode">
+                            <span class="oi oi-random"></span> Random
+                        </label>
+                        
+                        <input type="radio" class="btn-check" id="tradeMode" checked="@(colorMode == ColorAssignmentMode.Trade)" @onchange="@(() => { colorMode = ColorAssignmentMode.Trade; ResetColorTradeCalculator(); })" />
+                        <label class="btn btn-outline-primary" for="tradeMode">
+                            <span class="oi oi-transfer"></span> Trade
+                        </label>
+                    </div>
+                </div>
+
+                @if (colorMode == ColorAssignmentMode.Random)
+                {
+                    <!-- Random Mode UI -->
+                    <p class="text-muted">Assign player colors. Only the first @playerCount colors are available.</p>
+                    <button class="btn btn-secondary mb-3" @onclick="ShuffleColors">
+                        <span class="oi oi-random"></span> Shuffle Colors
+                    </button>
+                    <table class="table">
+                        <thead>
                             <tr>
-                                <td>@assignment.PlayerName</td>
-                                <td>
-                                    <select class="form-select" @bind="assignment.PlayerColor">
-                                        @for (int c = 0; c < playerCount; c++)
-                                        {
-                                            var color = (PlayerColor)c;
-                                            <option value="@color">@color.ToString()</option>
-                                        }
-                                    </select>
-                                    <div class="mt-1">
-                                        <PlayerColorBadge PlayerColor="@assignment.PlayerColor" />
-                                    </div>
-                                </td>
-                                <td>@(i + 1)</td>
+                                <th>Player</th>
+                                <th>Color</th>
+                                <th>Position</th>
                             </tr>
-                        }
-                    </tbody>
-                </table>
-                <button class="btn btn-secondary me-2" @onclick="PreviousStep">
-                    <span class="oi oi-chevron-left"></span> Back
-                </button>
-                <button class="btn btn-primary" @onclick="NextStep">
-                    Next <span class="oi oi-chevron-right"></span>
-                </button>
+                        </thead>
+                        <tbody>
+                            @for (int i = 0; i < playerAssignments.Count; i++)
+                            {
+                                var assignment = playerAssignments[i];
+                                var index = i;
+                                <tr>
+                                    <td>@assignment.PlayerName</td>
+                                    <td>
+                                        <select class="form-select" @bind="assignment.PlayerColor">
+                                            @for (int c = 0; c < playerCount; c++)
+                                            {
+                                                var color = (PlayerColor)c;
+                                                <option value="@color">@color.ToString()</option>
+                                            }
+                                        </select>
+                                        <div class="mt-1">
+                                            <PlayerColorBadge PlayerColor="@assignment.PlayerColor" />
+                                        </div>
+                                    </td>
+                                    <td>@(i + 1)</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+                else
+                {
+                    <!-- Trade Mode UI -->
+                    <p class="text-muted">Players trade for color positions. Gold adjustments will carry to Step 4.</p>
+                    
+                    <div class="row">
+                        <!-- Left Panel: Color Assignment -->
+                        <div class="col-md-6">
+                            <h5>Color Assignment</h5>
+                            <table class="table">
+                                <thead>
+                                    <tr>
+                                        <th>Position</th>
+                                        <th>Color</th>
+                                        <th>Player</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @for (int i = 0; i < playerCount; i++)
+                                    {
+                                        var colorIndex = i;
+                                        var color = (PlayerColor)i;
+                                        var assignedPlayer = playerAssignments.FirstOrDefault(p => (int)p.PlayerColor == colorIndex);
+                                        <tr>
+                                            <td>@(i + 1)</td>
+                                            <td>
+                                                <PlayerColorBadge PlayerColor="@color" />
+                                            </td>
+                                            <td>
+                                                <select class="form-select" value="@(assignedPlayer?.MembershipId.ToString() ?? "")" @onchange="@((e) => AssignColorToPlayer(colorIndex, e.Value?.ToString()))">
+                                                    <option value="">Unassigned</option>
+                                                    @foreach (var pa in playerAssignments.OrderBy(p => p.PlayerName))
+                                                    {
+                                                        <option value="@pa.MembershipId">@pa.PlayerName</option>
+                                                    }
+                                                </select>
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <!-- Right Panel: Color Trading Calculator -->
+                        <div class="col-md-6">
+                            <h5>Color Trading Calculator</h5>
+                            @for (int i = 0; i < playerAssignments.Count; i++)
+                            {
+                                var assignment = playerAssignments[i];
+                                var index = i;
+                                var isLastRow = i == playerAssignments.Count - 1;
+                                <div class="card mb-2">
+                                    <div class="card-body py-2">
+                                        <div class="row align-items-center">
+                                            <div class="col-md-6">
+                                                <label class="form-label small mb-1">Player</label>
+                                                <select class="form-select form-select-sm" @bind="assignment.ColorCalculatorPlayerId" @bind:after="CalculateColorGoldDistribution">
+                                                    <option value="">Select...</option>
+                                                    @{
+                                                        var selectedAbove = new HashSet<Guid>();
+                                                        for (int r = 0; r < index; r++)
+                                                        {
+                                                            var playerId = playerAssignments[r].ColorCalculatorPlayerId;
+                                                            if (playerId.HasValue && playerId.Value != Guid.Empty)
+                                                            {
+                                                                selectedAbove.Add(playerId.Value);
+                                                            }
+                                                        }
+                                                        
+                                                        var sortedPlayers = playerAssignments
+                                                            .OrderBy(p => selectedAbove.Contains(p.MembershipId) ? 1 : 0)
+                                                            .ThenBy(p => p.PlayerName);
+                                                    }
+                                                    @foreach (var pa in sortedPlayers)
+                                                    {
+                                                        var isAlreadySelected = selectedAbove.Contains(pa.MembershipId);
+                                                        <option value="@pa.MembershipId">@pa.PlayerName@(isAlreadySelected ? " (selected)" : "")</option>
+                                                    }
+                                                </select>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <label class="form-label small mb-1">Stake</label>
+                                                @if (isLastRow)
+                                                {
+                                                    <input type="text" class="form-control form-control-sm" value="N/A" readonly />
+                                                }
+                                                else
+                                                {
+                                                    <input type="number" class="form-control form-control-sm" @bind="assignment.ColorCalculatorStake" @bind:after="CalculateColorGoldDistribution" />
+                                                }
+                                            </div>
+                                        </div>
+                                        <div class="mt-1 small">
+                                            <strong>Gold: </strong>
+                                            @{
+                                                var selectedPlayer = assignment.ColorCalculatorPlayerId.HasValue && assignment.ColorCalculatorPlayerId.Value != Guid.Empty
+                                                    ? playerAssignments.FirstOrDefault(p => p.MembershipId == assignment.ColorCalculatorPlayerId.Value)
+                                                    : null;
+                                                var displayGold = selectedPlayer?.ColorTradeGold ?? 0;
+                                            }
+                                            <span class="@(displayGold >= 0 ? "text-success" : "text-danger")">
+                                                @(displayGold >= 0 ? "+" : "")@displayGold
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                            }
+                            <div class="alert alert-info py-2 mb-2">
+                                <small>
+                                    <strong>Total: @ColorCalculatorTotal</strong>
+                                    @if (Math.Abs(ColorCalculatorTotal) <= 1)
+                                    {
+                                        <span class="text-success ms-2">✓</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-danger ms-2">⚠ Should be 0 or ±1</span>
+                                    }
+                                </small>
+                            </div>
+                            @if (HasColorGoldViolation)
+                            {
+                                <div class="alert alert-danger py-2 mb-2">
+                                    <small>⚠ One or more players would go below -10k gold!</small>
+                                </div>
+                            }
+                            <button class="btn btn-success btn-sm w-100" @onclick="CopyColorCalculatorToAssignments" disabled="@HasColorGoldViolation">
+                                <span class="oi oi-check"></span> Apply Color Trades
+                            </button>
+                        </div>
+                    </div>
+                }
+
+                <div class="mt-3">
+                    <button class="btn btn-secondary me-2" @onclick="PreviousStep">
+                        <span class="oi oi-chevron-left"></span> Back
+                    </button>
+                    <button class="btn btn-primary" @onclick="NextStep">
+                        Next <span class="oi oi-chevron-right"></span>
+                    </button>
+                </div>
             </div>
         </div>
     }
@@ -259,6 +414,25 @@ else
                     <!-- Right Block: Calculator -->
                     <div class="col-md-6">
                         <h5>Gold Calculator</h5>
+                        
+                        @if (HasColorTrades)
+                        {
+                            <div class="alert alert-info py-2 mb-3">
+                                <small><strong>Starting Gold from Color Trades:</strong></small>
+                                <div class="mt-1">
+                                    @foreach (var pa in playerAssignments.OrderBy(p => p.PlayerName))
+                                    {
+                                        <div class="small">
+                                            <strong>@pa.PlayerName:</strong> 
+                                            <span class="@(pa.ColorTradeGold >= 0 ? "text-success" : "text-danger")">
+                                                @(pa.ColorTradeGold >= 0 ? "+" : "")@pa.ColorTradeGold
+                                            </span>
+                                        </div>
+                                    }
+                                </div>
+                            </div>
+                        }
+                        
                         @for (int i = 0; i < playerAssignments.Count; i++)
                         {
                             var assignment = playerAssignments[i];
@@ -310,17 +484,34 @@ else
                                             }
                                         </div>
                                     </div>
-                                    <div class="mt-2">
-                                        <strong>Distribution: </strong>
-                                        @{
-                                            var selectedPlayer = assignment.CalculatorPlayerId.HasValue && assignment.CalculatorPlayerId.Value != Guid.Empty
-                                                ? playerAssignments.FirstOrDefault(p => p.MembershipId == assignment.CalculatorPlayerId.Value)
-                                                : null;
-                                            var displayGold = selectedPlayer?.CalculatedGold ?? 0;
+                                    <div class="mt-2 small">
+                                        <div>
+                                            <strong>Town Trade: </strong>
+                                            @{
+                                                var selectedPlayer = assignment.CalculatorPlayerId.HasValue && assignment.CalculatorPlayerId.Value != Guid.Empty
+                                                    ? playerAssignments.FirstOrDefault(p => p.MembershipId == assignment.CalculatorPlayerId.Value)
+                                                    : null;
+                                                var townTradeGold = selectedPlayer?.CalculatedGold ?? 0;
+                                                var colorGold = selectedPlayer?.ColorTradeGold ?? 0;
+                                                var totalGold = colorGold + townTradeGold;
+                                            }
+                                            <span class="@(townTradeGold >= 0 ? "text-success" : "text-danger")">
+                                                @(townTradeGold >= 0 ? "+" : "")@townTradeGold
+                                            </span>
+                                        </div>
+                                        @if (HasColorTrades)
+                                        {
+                                            <div class="mt-1">
+                                                <strong>Total (Color + Town): </strong>
+                                                <span class="@(totalGold >= 0 ? "text-success" : "text-danger") @(totalGold < -10000 ? "fw-bold" : "")">
+                                                    @(totalGold >= 0 ? "+" : "")@totalGold
+                                                    @if (totalGold < -10000)
+                                                    {
+                                                        <span class="text-danger">⚠</span>
+                                                    }
+                                                </span>
+                                            </div>
                                         }
-                                        <span class="@(displayGold >= 0 ? "text-success" : "text-danger")">
-                                            @(displayGold >= 0 ? "+" : "")@displayGold
-                                        </span>
                                     </div>
                                 </div>
                             </div>
@@ -336,7 +527,13 @@ else
                                 <span class="text-danger ms-2">⚠ Total should be 0 or ±1</span>
                             }
                         </div>
-                        <button class="btn btn-success w-100" @onclick="CopyCalculatorToAssignments">
+                        @if (HasTownGoldViolation)
+                        {
+                            <div class="alert alert-danger py-2 mb-2">
+                                <small>⚠ One or more players would go below -10k gold with cumulative totals!</small>
+                            </div>
+                        }
+                        <button class="btn btn-success w-100" @onclick="CopyCalculatorToAssignments" disabled="@HasTownGoldViolation">
                             <span class="oi oi-copywriting"></span> Copy to Assignments
                         </button>
                     </div>
@@ -432,6 +629,10 @@ else
     // Town pool selection state
     private HashSet<int> bannedTowns = new();
     private List<int> selectedTownsPool = new();
+    
+    // Color assignment mode
+    private enum ColorAssignmentMode { Random, Trade }
+    private ColorAssignmentMode colorMode = ColorAssignmentMode.Random;
 
     protected override async Task OnInitializedAsync()
     {
@@ -722,10 +923,15 @@ else
         public string? HeroName { get; set; }
         public List<Hero>? AvailableHeroes { get; set; }
         
-        // Calculator properties
+        // Town trade calculator properties
         public Guid? CalculatorPlayerId { get; set; }
         public int CalculatorStake { get; set; }
         public int CalculatedGold { get; set; }
+        
+        // Color trade calculator properties
+        public Guid? ColorCalculatorPlayerId { get; set; }
+        public int ColorCalculatorStake { get; set; }
+        public int ColorTradeGold { get; set; }
     }
 
     private int CalculatorTotal => playerAssignments.Sum(p => p.CalculatedGold);
@@ -798,6 +1004,145 @@ else
         foreach (var assignment in playerAssignments)
         {
             assignment.NetGold = assignment.CalculatedGold;
+        }
+    }
+
+    // Color trading methods
+    private int ColorCalculatorTotal => playerAssignments.Sum(p => p.ColorTradeGold);
+
+    private bool HasColorGoldViolation
+    {
+        get
+        {
+            const int MinGoldLimit = -10000;
+            return playerAssignments.Any(p => p.ColorTradeGold < MinGoldLimit);
+        }
+    }
+
+    private void ResetColorTradeCalculator()
+    {
+        foreach (var assignment in playerAssignments)
+        {
+            assignment.ColorCalculatorPlayerId = null;
+            assignment.ColorCalculatorStake = 0;
+            assignment.ColorTradeGold = 0;
+        }
+    }
+
+    private void AssignColorToPlayer(int colorIndex, string? playerIdStr)
+    {
+        if (string.IsNullOrEmpty(playerIdStr) || !Guid.TryParse(playerIdStr, out var playerId))
+        {
+            // Unassign - find player with this color and reset
+            var currentPlayer = playerAssignments.FirstOrDefault(p => (int)p.PlayerColor == colorIndex);
+            if (currentPlayer != null)
+            {
+                currentPlayer.PlayerColor = PlayerColor.Red; // Temporary assignment
+            }
+            return;
+        }
+
+        var player = playerAssignments.FirstOrDefault(p => p.MembershipId == playerId);
+        if (player != null)
+        {
+            // Check if another player has this color
+            var otherPlayer = playerAssignments.FirstOrDefault(p => (int)p.PlayerColor == colorIndex && p.MembershipId != playerId);
+            if (otherPlayer != null)
+            {
+                // Swap colors
+                var tempColor = player.PlayerColor;
+                player.PlayerColor = otherPlayer.PlayerColor;
+                otherPlayer.PlayerColor = tempColor;
+            }
+            else
+            {
+                player.PlayerColor = (PlayerColor)colorIndex;
+            }
+        }
+    }
+
+    private void CalculateColorGoldDistribution()
+    {
+        // Reset all color trade gold values
+        foreach (var assignment in playerAssignments)
+        {
+            assignment.ColorTradeGold = 0;
+        }
+
+        // Calculate distribution for each row
+        for (int i = 0; i < playerAssignments.Count; i++)
+        {
+            var currentRow = playerAssignments[i];
+            
+            // Skip if no player selected
+            if (!currentRow.ColorCalculatorPlayerId.HasValue || currentRow.ColorCalculatorPlayerId == Guid.Empty)
+            {
+                continue;
+            }
+
+            var stake = currentRow.ColorCalculatorStake;
+            
+            // Find the player who made the stake and deduct it
+            var stakingPlayer = playerAssignments.FirstOrDefault(p => p.MembershipId == currentRow.ColorCalculatorPlayerId.Value);
+            if (stakingPlayer != null)
+            {
+                stakingPlayer.ColorTradeGold -= stake;
+
+                // Count how many rows below have players selected
+                var playersBelow = new List<Guid>();
+                for (int j = i + 1; j < playerAssignments.Count; j++)
+                {
+                    var playerId = playerAssignments[j].ColorCalculatorPlayerId;
+                    if (playerId.HasValue && playerId.Value != Guid.Empty)
+                    {
+                        playersBelow.Add(playerId.Value);
+                    }
+                }
+
+                // Distribute stake equally to players selected in rows below
+                if (playersBelow.Count > 0 && stake > 0)
+                {
+                    var sharePerPlayer = stake / playersBelow.Count;
+                    var remainder = stake % playersBelow.Count;
+
+                    foreach (var playerId in playersBelow)
+                    {
+                        var playerToReceive = playerAssignments.FirstOrDefault(p => p.MembershipId == playerId);
+                        if (playerToReceive != null)
+                        {
+                            playerToReceive.ColorTradeGold += sharePerPlayer;
+                            // Distribute remainder to first few players
+                            if (remainder > 0)
+                            {
+                                playerToReceive.ColorTradeGold += 1;
+                                remainder--;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private void CopyColorCalculatorToAssignments()
+    {
+        // Copy color trade gold to NetGold to carry forward to Step 4
+        foreach (var assignment in playerAssignments)
+        {
+            assignment.NetGold = assignment.ColorTradeGold;
+        }
+    }
+
+    // Town trading methods
+    private bool HasColorTrades => playerAssignments.Any(p => p.ColorTradeGold != 0);
+
+    private bool HasTownGoldViolation
+    {
+        get
+        {
+            const int MinGoldLimit = -10000;
+            // Check if any player's cumulative gold (color + town) would go below -10k
+            return playerAssignments.Any(p => (p.ColorTradeGold + p.CalculatedGold) < MinGoldLimit);
         }
     }
 }

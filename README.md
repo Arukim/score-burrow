@@ -309,6 +309,7 @@ See [Infrastructure README](infrastructure/README.md) for detailed deployment do
 - [x] Color distribution analysis by game size
 - [x] Town pool selection in game wizard
 - [x] Added Bulwark town and 17 heroes (Chieftain and Elder classes)
+- [x] Fixed Azure App Service deployment connection string issues
 
 ### In Progress
 - [ ] Game editing and management UI

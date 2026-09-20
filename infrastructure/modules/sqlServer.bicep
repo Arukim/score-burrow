@@ -101,4 +101,4 @@ output sqlServerFqdn string = sqlServer.properties.fullyQualifiedDomainName
 output sqlServerName string = sqlServer.name
 output sqlDatabaseName string = sqlDatabase.name
 output sqlDatabaseId string = sqlDatabase.id
-output sqlConnectionString string = 'Server=tcp:${sqlServer.properties.fullyQualifiedDomainName},1433;Database=${sqlDatabase.name};Authentication=Active Directory Default;'
+output sqlConnectionString string = 'Server=tcp:${sqlServer.properties.fullyQualifiedDomainName},1433;Database=${sqlDatabase.name};User ID=${administratorLogin};Password=${administratorLoginPassword};Trusted_Connection=False;Encrypt=True;'

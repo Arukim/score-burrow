@@ -91,7 +91,8 @@ public class ScoreBurrowDbContext : IdentityDbContext<ApplicationUser>
             new Town { Id = 8, Name = "Fortress", Description = "The home of Beastmasters and Witches" },
             new Town { Id = 9, Name = "Conflux", Description = "The home of Planeswalkers and Elementalists" },
             new Town { Id = 10, Name = "Cove", Description = "The home of Captains and Navigators" },
-            new Town { Id = 11, Name = "Factory", Description = "The home of Artificiers and Mercenaries" }
+            new Town { Id = 11, Name = "Factory", Description = "The home of Artificers and Mercenaries" },
+            new Town { Id = 12, Name = "Bulwark", Description = "The home of Chieftains and Elders" }
         );
     }
 
@@ -292,11 +293,11 @@ public class ScoreBurrowDbContext : IdentityDbContext<ApplicationUser>
             new Hero { Id = 167, Name = "Morton", TownId = 11, HeroClass = "Mercenary" },
             new Hero { Id = 168, Name = "Tavin", TownId = 11, HeroClass = "Mercenary" },
             new Hero { Id = 169, Name = "Murdoch", TownId = 11, HeroClass = "Mercenary" },
+            new Hero { Id = 170, Name = "Melchior", TownId = 11, HeroClass = "Mercenary" },
+            new Hero { Id = 171, Name = "Floribert", TownId = 11, HeroClass = "Mercenary" },
+            new Hero { Id = 172, Name = "Wynona", TownId = 11, HeroClass = "Mercenary" },
 
             // Factory Artificer Heroes
-            new Hero { Id = 170, Name = "Melchior", TownId = 11, HeroClass = "Artificer" },
-            new Hero { Id = 171, Name = "Floribert", TownId = 11, HeroClass = "Artificer" },
-            new Hero { Id = 172, Name = "Wynona", TownId = 11, HeroClass = "Artificer" },
             new Hero { Id = 173, Name = "Todd", TownId = 11, HeroClass = "Artificer" },
             new Hero { Id = 174, Name = "Agar", TownId = 11, HeroClass = "Artificer" },
             new Hero { Id = 175, Name = "Bertram", TownId = 11, HeroClass = "Artificer" },
@@ -305,6 +306,49 @@ public class ScoreBurrowDbContext : IdentityDbContext<ApplicationUser>
             new Hero { Id = 178, Name = "Victoria", TownId = 11, HeroClass = "Artificer" },
             new Hero { Id = 179, Name = "Eanswythe", TownId = 11, HeroClass = "Artificer" },
             new Hero { Id = 180, Name = "Frederick", TownId = 11, HeroClass = "Artificer" },
+
+            // HotA alternate tavern heroes
+            new Hero { Id = 181, Name = "Beatrice", TownId = 1, HeroClass = "Knight" },
+            new Hero { Id = 182, Name = "Sir Mullich", TownId = 1, HeroClass = "Knight" },
+            new Hero { Id = 183, Name = "Giselle", TownId = 2, HeroClass = "Ranger" },
+            new Hero { Id = 184, Name = "Ranloo", TownId = 5, HeroClass = "Death Knight" },
+            new Hero { Id = 185, Name = "Kinkeria", TownId = 8, HeroClass = "Witch" },
+            new Hero { Id = 186, Name = "Celestine", TownId = 11, HeroClass = "Artificer" },
+
+            // Bulwark Chieftain Heroes
+            new Hero { Id = 187, Name = "Dhuin", TownId = 12, HeroClass = "Chieftain" },
+            new Hero { Id = 188, Name = "Oidana", TownId = 12, HeroClass = "Chieftain" },
+            new Hero { Id = 189, Name = "Neia", TownId = 12, HeroClass = "Chieftain" },
+            new Hero { Id = 190, Name = "Eikthurn", TownId = 12, HeroClass = "Chieftain" },
+            new Hero { Id = 191, Name = "Creyle", TownId = 12, HeroClass = "Chieftain" },
+            new Hero { Id = 192, Name = "Spadum", TownId = 12, HeroClass = "Chieftain" },
+            new Hero { Id = 193, Name = "Kynr", TownId = 12, HeroClass = "Chieftain" },
+            new Hero { Id = 194, Name = "Ergon", TownId = 12, HeroClass = "Chieftain" },
+
+            // Bulwark Elder Heroes
+            new Hero { Id = 195, Name = "Kriv", TownId = 12, HeroClass = "Elder" },
+            new Hero { Id = 196, Name = "Glacius", TownId = 12, HeroClass = "Elder" },
+            new Hero { Id = 197, Name = "Sial", TownId = 12, HeroClass = "Elder" },
+            new Hero { Id = 198, Name = "Dalton", TownId = 12, HeroClass = "Elder" },
+            new Hero { Id = 199, Name = "Biarma", TownId = 12, HeroClass = "Elder" },
+            new Hero { Id = 200, Name = "Akka", TownId = 12, HeroClass = "Elder" },
+            new Hero { Id = 201, Name = "Vehr", TownId = 12, HeroClass = "Elder" },
+            new Hero { Id = 202, Name = "Allora", TownId = 12, HeroClass = "Elder" },
+            new Hero { Id = 203, Name = "Haugir", TownId = 12, HeroClass = "Elder" },
+
+            // Campaign heroes (full map-editor profiles)
+            new Hero { Id = 204, Name = "Catherine", TownId = 1, HeroClass = "Knight" },
+            new Hero { Id = 205, Name = "Roland", TownId = 1, HeroClass = "Knight" },
+            new Hero { Id = 206, Name = "Gelu", TownId = 2, HeroClass = "Ranger" },
+            new Hero { Id = 207, Name = "Dracon", TownId = 3, HeroClass = "Wizard" },
+            new Hero { Id = 208, Name = "Xeron", TownId = 4, HeroClass = "Demoniac" },
+            new Hero { Id = 209, Name = "Haart Lich", TownId = 5, HeroClass = "Death Knight" },
+            new Hero { Id = 210, Name = "Mutare", TownId = 6, HeroClass = "Overlord" },
+            new Hero { Id = 211, Name = "Mutare Drake", TownId = 6, HeroClass = "Overlord" },
+            new Hero { Id = 212, Name = "Boragus", TownId = 7, HeroClass = "Barbarian" },
+            new Hero { Id = 213, Name = "Kilgor", TownId = 7, HeroClass = "Barbarian" },
+            new Hero { Id = 214, Name = "Adrienne", TownId = 8, HeroClass = "Witch" },
+            new Hero { Id = 215, Name = "Bidley", TownId = 10, HeroClass = "Captain" },
         };
 
         modelBuilder.Entity<Hero>().HasData(heroes);

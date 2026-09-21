@@ -92,10 +92,14 @@ else
         <div class="card">
             <div class="card-body">
                 <h3>Step 2: Color Assignment</h3>
-                <p class="text-muted">Assign player colors. Only the first @playerCount colors are available.</p>
+                <p class="text-muted">Assign player colors. Only the first @playerCount colors are available. Each color can be used once — picking a taken color swaps with that player.</p>
                 <button class="btn btn-secondary mb-3" @onclick="ShuffleColors">
                     <span class="oi oi-random"></span> Shuffle Colors
                 </button>
+                @if (!CanProceedFromStep2())
+                {
+                    <div class="alert alert-warning">Each player must have a unique color.</div>
+                }
                 <table class="table">
                     <thead>
                         <tr>
@@ -112,7 +116,7 @@ else
                             <tr>
                                 <td>@assignment.PlayerName</td>
                                 <td>
-                                    <select class="form-select" @bind="assignment.PlayerColor">
+                                    <select class="form-select" @bind:get="assignment.PlayerColor" @bind:set="@(color => AssignColor(index, color))">
                                         @for (int c = 0; c < playerCount; c++)
                                         {
                                             var color = (PlayerColor)c;
@@ -131,7 +135,7 @@ else
                 <button class="btn btn-secondary me-2" @onclick="PreviousStep">
                     <span class="oi oi-chevron-left"></span> Back
                 </button>
-                <button class="btn btn-primary" @onclick="NextStep">
+                <button class="btn btn-primary" @onclick="NextStep" disabled="@(!CanProceedFromStep2())">
                     Next <span class="oi oi-chevron-right"></span>
                 </button>
             </div>
@@ -490,6 +494,12 @@ else
                selectedMembers.Count == playerCount;
     }
 
+    private bool CanProceedFromStep2()
+    {
+        return playerAssignments.Count == playerCount
+            && playerAssignments.Select(p => p.PlayerColor).Distinct().Count() == playerAssignments.Count;
+    }
+
     private bool CanProceedFromStep3()
     {
         return selectedTownsPool.Count == playerCount;
@@ -574,7 +584,7 @@ else
             }).ToList();
             currentStep = 2;
         }
-        else if (currentStep == 2)
+        else if (currentStep == 2 && CanProceedFromStep2())
         {
             // Update positions based on color
             playerAssignments = playerAssignments
@@ -611,6 +621,23 @@ else
         {
             currentStep--;
         }
+    }
+
+    private void AssignColor(int index, PlayerColor newColor)
+    {
+        var assignment = playerAssignments[index];
+        if (assignment.PlayerColor == newColor)
+        {
+            return;
+        }
+
+        var occupant = playerAssignments.FirstOrDefault(p => p.PlayerColor == newColor);
+        if (occupant != null)
+        {
+            occupant.PlayerColor = assignment.PlayerColor;
+        }
+
+        assignment.PlayerColor = newColor;
     }
 
     private void ShuffleColors()

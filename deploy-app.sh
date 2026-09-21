@@ -99,12 +99,12 @@ echo ""
 # Create deployment package
 echo -e "${YELLOW}Creating deployment package...${NC}"
 
-# Create deployment package with correct path separators for Azure Linux
-PUBLISH_PATH_WIN=$(cygpath -w "$PUBLISH_PATH")
-DEPLOYMENT_PACKAGE_WIN=$(cygpath -w "$DEPLOYMENT_PACKAGE")
-
-# Use PowerShell to create ZIP with forward slashes in paths
-powershell.exe -Command "
+# Azure Linux App Service needs ZIP entries with forward slashes.
+# Native `zip` on macOS/Linux already does that; Windows Compress-Archive does not.
+if [[ "$OSTYPE" == "msys" || "$OSTYPE" == "win32" || "$OSTYPE" == "cygwin" ]]; then
+    PUBLISH_PATH_WIN=$(cygpath -w "$PUBLISH_PATH")
+    DEPLOYMENT_PACKAGE_WIN=$(cygpath -w "$DEPLOYMENT_PACKAGE")
+    powershell.exe -Command "
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 \$zip = [System.IO.Compression.ZipFile]::Open('$DEPLOYMENT_PACKAGE_WIN', 'Create')
 Get-ChildItem '$PUBLISH_PATH_WIN' -Recurse -File | ForEach-Object {
@@ -113,6 +113,9 @@ Get-ChildItem '$PUBLISH_PATH_WIN' -Recurse -File | ForEach-Object {
 }
 \$zip.Dispose()
 "
+else
+    (cd "$PUBLISH_PATH" && zip -r "$DEPLOYMENT_PACKAGE" .) > /dev/null
+fi
 
 echo -e "${GREEN}✓ Deployment package created: $(basename $DEPLOYMENT_PACKAGE)${NC}"
 echo ""

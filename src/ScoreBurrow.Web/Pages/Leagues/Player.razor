@@ -497,7 +497,7 @@ else
             cachedData = new PlayerData { Membership = membership, Games = games, RatingHistory = ratingHistory };
 
             var cacheOptions = new MemoryCacheEntryOptions()
-                .SetSlidingExpiration(TimeSpan.FromMinutes(10))
+                .SetAbsoluteExpiration(TimeSpan.FromMinutes(10))
                 .AddExpirationToken(LeagueService.GetLeagueCacheExpirationToken(LeagueId));
 
             MemoryCache.Set(cacheKey, cachedData, cacheOptions);

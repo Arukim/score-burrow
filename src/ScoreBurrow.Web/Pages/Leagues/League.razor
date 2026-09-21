@@ -611,7 +611,7 @@ function toggleTownStats(button, townName) {
             };
 
             var cacheOptions = new MemoryCacheEntryOptions()
-                .SetSlidingExpiration(TimeSpan.FromMinutes(10))
+                .SetAbsoluteExpiration(TimeSpan.FromMinutes(10))
                 .AddExpirationToken(LeagueService.GetLeagueCacheExpirationToken(LeagueId));
 
             MemoryCache.Set(cacheKey, cachedLeagueData, cacheOptions);

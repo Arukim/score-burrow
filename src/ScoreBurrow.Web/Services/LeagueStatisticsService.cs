@@ -10,15 +10,18 @@ public class LeagueStatisticsService : ILeagueStatisticsService
 {
     private readonly ScoreBurrowDbContext _dbContext;
     private readonly IMemoryCache _memoryCache;
+    private readonly ILeagueService _leagueService;
     private readonly ILogger<LeagueStatisticsService> _logger;
 
     public LeagueStatisticsService(
         ScoreBurrowDbContext dbContext,
         IMemoryCache memoryCache,
+        ILeagueService leagueService,
         ILogger<LeagueStatisticsService> logger)
     {
         _dbContext = dbContext;
         _memoryCache = memoryCache;
+        _leagueService = leagueService;
         _logger = logger;
     }
 
@@ -138,10 +141,7 @@ public class LeagueStatisticsService : ILeagueStatisticsService
         // Order by games played descending
         var result = townStats.OrderByDescending(t => t.GamesPlayed).ToList();
 
-        // Cache for 1 hour
-        var cacheOptions = new MemoryCacheEntryOptions()
-            .SetSlidingExpiration(TimeSpan.FromHours(1));
-        _memoryCache.Set(cacheKey, result, cacheOptions);
+        _memoryCache.Set(cacheKey, result, LeagueCacheEntries.ForLeague(_leagueService, leagueId, TimeSpan.FromHours(1)));
 
         _logger.LogInformation("Calculated statistics for {Count} towns in league {LeagueId}", result.Count, leagueId);
 
@@ -286,10 +286,7 @@ public class LeagueStatisticsService : ILeagueStatisticsService
         // Calculate color distribution by game size
         result.ColorDistributions = CalculateColorDistributions(participants, minGames);
 
-        // Cache for 1 hour
-        var cacheOptions = new MemoryCacheEntryOptions()
-            .SetSlidingExpiration(TimeSpan.FromHours(1));
-        _memoryCache.Set(cacheKey, result, cacheOptions);
+        _memoryCache.Set(cacheKey, result, LeagueCacheEntries.ForLeague(_leagueService, leagueId, TimeSpan.FromHours(1)));
 
         return result;
     }
@@ -516,10 +513,7 @@ public class LeagueStatisticsService : ILeagueStatisticsService
         // Sort by game size ascending
         var result = colorStats.OrderBy(c => c.GameSize).ToList();
 
-        // Cache for 1 hour
-        var cacheOptions = new MemoryCacheEntryOptions()
-            .SetSlidingExpiration(TimeSpan.FromHours(1));
-        _memoryCache.Set(cacheKey, result, cacheOptions);
+        _memoryCache.Set(cacheKey, result, LeagueCacheEntries.ForLeague(_leagueService, leagueId, TimeSpan.FromHours(1)));
 
         _logger.LogInformation(
             "Calculated colour statistics for {Count} game sizes in league {LeagueId}",

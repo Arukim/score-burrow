@@ -173,7 +173,7 @@ else
 
             // Cache for 15 minutes since game data is more stable
             var cacheOptions = new MemoryCacheEntryOptions()
-                .SetSlidingExpiration(TimeSpan.FromMinutes(15))
+                .SetAbsoluteExpiration(TimeSpan.FromMinutes(15))
                 .AddExpirationToken(LeagueService.GetLeagueCacheExpirationToken(LeagueId));
 
             MemoryCache.Set(cacheKey, game, cacheOptions);

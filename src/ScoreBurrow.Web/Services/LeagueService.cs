@@ -580,8 +580,8 @@ public class LeagueService : ILeagueService
     public void InvalidateLeagueCache(Guid leagueId, string? userId = null, Guid? gameId = null)
     {
         // Cancel the shared token so every cache entry that attached
-        // GetLeagueCacheExpirationToken(leagueId) is dropped immediately,
-        // including other users' league_{id}_{userId} recent-games entries.
+        // GetLeagueCacheExpirationToken(leagueId) is dropped immediately:
+        // league pages, game_{id}, player pages, player_performance_*, town/color stats.
         var tokenKey = LeagueCacheTokenKey(leagueId);
         if (_memoryCache.TryGetValue(tokenKey, out CancellationTokenSource? cts) && cts != null)
         {

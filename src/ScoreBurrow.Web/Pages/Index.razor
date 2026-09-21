@@ -136,9 +136,9 @@ else
                 MostRecentGameDate = x.MostRecentGameDate
             }).ToList();
 
-            // Cache for 5 minutes with sliding expiration
+            // Cache for 5 minutes
             var cacheOptions = new MemoryCacheEntryOptions()
-                .SetSlidingExpiration(TimeSpan.FromMinutes(5));
+                .SetAbsoluteExpiration(TimeSpan.FromMinutes(5));
 
             MemoryCache.Set(cacheKey, cachedLeagues, cacheOptions);
         }

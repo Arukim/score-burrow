@@ -1,16 +1,16 @@
 # Score Burrow review findings — 20 Sep 2026
 
-Reviewed **`main` @ `f491b39`** (Bulwark, technical-loss restart, campaign heroes).
+Reviewed **`main` @ `f491b39`** (Bulwark, technical-loss restart, campaign heroes). Progress below is against **`main` @ `4ba7171`** (#19 stats projector, #21 cache invalidation, #22 create-game validation).
 
 Sources: architecture review, product/UX review, quality/risks review, full codebase review, Bugbot (retried with natural-language diff after empty branch-vs-main).
 
-Status key: **Confirmed** = checked in source this session. **Likely** = strong code evidence, not runtime-reproduced. **Design** = documented behaviour, not a defect unless product intent changes.
+Status key: **Done** = shipped after this review (PR). **Confirmed** = checked in source at review time. **Likely** = strong code evidence, not runtime-reproduced. **Design** = documented behaviour, not a defect unless product intent changes.
 
 ---
 
 ## Executive summary
 
-The league loop (roster → create game → complete / technical loss / cancel → Glicko + history) works. The main risk is **four writers** for ratings/stats (complete, tech-loss, import, Recalculate) that do not agree, plus **incomplete cache invalidation**. README claims color-adjusted win rate, invites, finish positions, and in-progress game editing that are not shipped.
+The league loop (roster → create game → complete / technical loss / cancel → Glicko + history) works. Complete, tech-loss, import, and Recalculate now share `PlayerStatisticsProjector` (#19). League/game/player pages and stats caches drop via a shared cache token on create/complete/TL/cancel (#21; player performance + absolute expiry on this branch). Create-game validates membership, unique players/colors, and hero↔town (#22). Remaining operator risk is **overlapping in-progress games** (P1-1/P1-2, no status CAS). README still claims color-adjusted win rate, invites, finish positions, and in-progress game editing that are not shipped.
 
 Azure **F1 + SQL free serverless cannot be kept always-on** without exhausting quotas. See [Keep-alive on Azure free tier](#keep-alive-on-azure-free-tier).
 
@@ -20,11 +20,11 @@ Azure **F1 + SQL free serverless cannot be kept always-on** without exhausting q
 
 | ID | Severity | Location | Finding | Status | Suggested fix |
 |----|----------|----------|---------|--------|----------------|
-| P0-1 | High | `GameService.cs` ~176–215 vs ~318–326 | `CompleteGameAsync` increments `GamesPlayed` / `GamesWon` and maybe favorite town. It does **not** set `WinRate`, `AveragePosition`, `FavoriteHeroId`, `LastUpdated`, or `LastRatingUpdate`. Tech-loss **does** update `WinRate` / `LastUpdated` / `LastRatingUpdate`. Profiles stay wrong until Recalculate. | Confirmed | One stats projector used by complete, TL, import, and Recalculate |
-| P0-2 | High | `LeagueService.InvalidateLeagueCache` ~644–674; `Game.razor` `game_{id}` 15 min sliding | After complete/TL, cache misses `game_{id}`, other users’ `league_{id}_{userId}`, player pages, `player_performance_*`, `home_leagues_top10`. Sliding expiry can hide updates while a page is viewed. | Confirmed | Versioned/central keys; absolute expiry; invalidate on create/complete/TL/cancel |
-| P0-3 | High | `GameService.CreateGameAsync` ~49–86; `CreateGame.razor` color dropdowns | Create-game does not validate membership∈league, unique players, unique colors, or hero↔town. Duplicate colors fail on unique `(GameId, PlayerColor)` with a SQL error. | Confirmed (Bugbot) | Validate in service; unique `(GameId, LeagueMembershipId)` |
-| P0-4 | Medium | `GameService.CreateGameAsync` ~84; `CancelGameAsync` ~407–415 | Create and cancel do **not** call `InvalidateLeagueCache`. League list can omit a new game or still show cancelled as in progress. | Confirmed (Bugbot) | Invalidate on those paths too |
-| P0-5 | Medium | `GameService.cs` ~196–207 | Favorite town counts **all** `GameParticipants`, including in-progress and cancelled. | Confirmed (Bugbot) | Restrict to `Status == Completed` |
+| P0-1 | High | `GameService.cs` ~176–215 vs ~318–326 | `CompleteGameAsync` increments `GamesPlayed` / `GamesWon` and maybe favorite town. It does **not** set `WinRate`, `AveragePosition`, `FavoriteHeroId`, `LastUpdated`, or `LastRatingUpdate`. Tech-loss **does** update `WinRate` / `LastUpdated` / `LastRatingUpdate`. Profiles stay wrong until Recalculate. | **Done (#19)** | `PlayerStatisticsProjector` used by complete, TL, import, and Recalculate |
+| P0-2 | High | `LeagueService.InvalidateLeagueCache` ~644–674; `Game.razor` `game_{id}` 15 min sliding | After complete/TL, cache misses `game_{id}`, other users’ `league_{id}_{userId}`, player pages, `player_performance_*`, `home_leagues_top10`. Sliding expiry can hide updates while a page is viewed. | **Done (#21 + this branch)** | Shared `GetLeagueCacheExpirationToken` on league/game/player pages, town/color stats, and `player_performance_*`; absolute expiry; invalidate on create/complete/TL/cancel |
+| P0-3 | High | `GameService.CreateGameAsync` ~49–86; `CreateGame.razor` color dropdowns | Create-game does not validate membership∈league, unique players, unique colors, or hero↔town. Duplicate colors fail on unique `(GameId, PlayerColor)` with a SQL error. | **Done (#22)** | Service validator; unique `(GameId, LeagueMembershipId)`; wizard swaps taken colors |
+| P0-4 | Medium | `GameService.CreateGameAsync` ~84; `CancelGameAsync` ~407–415 | Create and cancel do **not** call `InvalidateLeagueCache`. League list can omit a new game or still show cancelled as in progress. | **Done (#21)** | Invalidate on those paths too |
+| P0-5 | Medium | `GameService.cs` ~196–207 | Favorite town counts **all** `GameParticipants`, including in-progress and cancelled. | **Done (#19)** | Projector restricts to `Status == Completed` |
 
 ---
 
@@ -35,8 +35,8 @@ Azure **F1 + SQL free serverless cannot be kept always-on** without exhausting q
 | P1-1 | Critical (if overlapping games) | `GameService.CompleteGameAsync` ~107–155 | Completions apply Glicko from **create-time snapshots**, then last-write-wins on `LeagueMembership`. Two in-progress games for one player (or complete racing TL) overwrite live rating. `RatingHistory` keeps both rows. No rowversion / status CAS / transaction. | Likely | `UPDATE … WHERE Status = InProgress`; transaction; optional `RowVersion` |
 | P1-2 | High | `GameService.ApplyTechnicalLossAsync` vs `CompleteGameAsync` | Same in-memory `Status == InProgress` check. Two admins can pass it. | Likely | Compare-and-swap on status |
 | P1-3 | High | DataImport `GameImporter` vs live `GameService` | Import sets `Position` as winner=1 / else=2; live sets **color seat**. TL import snapshots **culprit only**; live snapshots everyone at create. CSV `IsTechnicalLoss` can mark every row; live sets only culprit. Recalculate then means different things for old vs new games. | Confirmed (code comparison) | Align import with live: color position, snapshot all, culprit-only TL |
-| P1-4 | High | Test projects | Only `ScoreBurrow.DataImport.Tests` (CSV grouping + date backtracker). No tests for Glicko-2, multiplayer, TL restart, GameService, stats, campaign heroes. | Confirmed | `ScoreBurrow.Rating.Tests` + one complete/TL integration test |
-| P1-5 | High | `GameService.CreateGameAsync` membership load | Membership loaded by Id only — not scoped to `leagueId`. Cross-league participant injection possible for a league admin. | Confirmed | `m.Id == … && m.LeagueId == leagueId` |
+| P1-4 | High | Test projects | Only `ScoreBurrow.DataImport.Tests` (CSV grouping + date backtracker). No tests for Glicko-2, multiplayer, TL restart, GameService, stats, campaign heroes. | Partial — `ScoreBurrow.Data.Tests` (#19) + `ScoreBurrow.Web.Tests` create/cancel (#22). Still no Glicko-2 or complete/TL integration tests | `ScoreBurrow.Rating.Tests` + one complete/TL integration test |
+| P1-5 | High | `GameService.CreateGameAsync` membership load | Membership loaded by Id only — not scoped to `leagueId`. Cross-league participant injection possible for a league admin. | **Done (#22)** | `m.Id == … && m.LeagueId == leagueId` |
 | P1-6 | Medium | `CreateGame.razor` gold calculator | UI shows balance; `CanProceedFromStep4` only requires towns. Duplicate calculator rows can double-count. | Likely | Block Next unless `abs(sum(NetGold)) ≤ 1`; unique calculator player |
 | P1-7 | Medium | `GameService` TL gold −1000 | Restarted game subtracts 1000 from culprit only; not zero-sum. Import warns on imbalance. | Design / product | Document as penalty **or** redistribute |
 | P1-8 | Medium | `RatingService.ApplyTechnicalLossPenalty` | Self-loss vs self has `E = 0.5`. Penalty scales with **RD**, not rating. Comment claims the opposite. | Confirmed | Fix comment; or use fixed hit / reference opponent |
@@ -107,7 +107,7 @@ Azure **F1 + SQL free serverless cannot be kept always-on** without exhausting q
 | P3-2 | Low | `Program.cs` | No explicit `AddMemoryCache()`. Pages/services inject `IMemoryCache`. **Likely registered transitively by Razor Pages** — not treated as an app-breaking P0. | Unverified at runtime | Call `AddMemoryCache()` explicitly |
 | P3-3 | Medium | Blazor Server + scoped `DbContext` | Circuit-scoped context; prerender double-init; concurrent UI events can throw “second operation on this context”. | Likely | `IDbContextFactory`; short-lived contexts |
 | P3-4 | Medium | EF delete behaviors | `Game`↔participants Restrict vs Cascade conflict across configs; `DeleteLeagueAsync` must manual-cascade. | Likely | One explicit delete policy |
-| P3-5 | Medium | Dual rating entry | Web `RatingService` vs DataImport `RatingCalculator` wrapping another instance. Stats duplicated in four places. | Confirmed | Shared application writer |
+| P3-5 | Medium | Dual rating entry | Web `RatingService` vs DataImport `RatingCalculator` wrapping another instance. Stats duplicated in four places. | Partial — stats share `PlayerStatisticsProjector` (#19). Dual Glicko entry remains | Shared application writer |
 | P3-6 | Medium | Infra | F1 `alwaysOn: false`; SQL serverless `autoPauseDelay: 60`, `useFreeLimit: true`, `freeLimitExhaustionBehavior: AutoPause`. SQL public + Azure-any firewall. No CI. No Key Vault. | Confirmed | See keep-alive section; tighten firewall; migrate in pipeline |
 | P3-7 | Low | Untracked junk on disk | `zip.exe`, `src/ScoreBurrow.Web/test.zip`, `template.json`, `heroes.txt` | Confirmed | Do not commit |
 | P3-8 | High (hosting) | Linux F1 | **Max 5 WebSocket connections.** Blazor Server uses one per open browser. Sixth concurrent user → HTTP 429. | Confirmed (Azure docs) | B1+ for real game nights, or Blazor WebAssembly |
@@ -121,9 +121,9 @@ Azure **F1 + SQL free serverless cannot be kept always-on** without exhausting q
 
 - Pure `ScoreBurrow.Rating` library and snapshot-at-create.
 - Service-layer admin checks on mutations.
-- Unique `(GameId, PlayerColor)`; gold sign (negative = paid).
+- Unique `(GameId, PlayerColor)` and `(GameId, LeagueMembershipId)`; gold sign (negative = paid).
 - TL restart copies lineup; campaign heroes included by `TownId`.
-- `RecalculateStatisticsAsync` as the repair hatch / future single projector.
+- `PlayerStatisticsProjector` as the single stats writer (complete, TL, import, Recalculate).
 - Unregistered members + later link-to-user.
 
 ### Next PR should not make worse
@@ -138,13 +138,15 @@ Azure **F1 + SQL free serverless cannot be kept always-on** without exhausting q
 
 ## Roadmap (priority after review)
 
-**Now:** shared stats writer; cache invalidation; create-game validation; status CAS + transaction; rating + GameService tests.
+**Shipped:** shared stats writer (#19); cache invalidation on create/complete/TL/cancel (#21); create-game validation + unique membership index (#22); `player_performance_*` + stats caches on the league token, absolute expiry (this branch).
+
+**Now:** status CAS + transaction (P1-1/P1-2); Glicko-2 + complete/TL tests (rest of P1-4).
 
 **Next:** full standings; edit in-progress games (no rating rewrite); finish or drop color-adjusted WR; login `returnUrl` and small UX polish.
 
 **Later:** password reset / invites; rematch clone; rating replay UI; export; soft-deactivate members; extract application layer; then email / API / SignalR / achievements.
 
-Do **not** start with SignalR, public API, or i18n while four write paths disagree.
+Do **not** start with SignalR, public API, or i18n while overlapping in-progress games can last-write-wins live ratings (P1-1).
 
 ---
 
@@ -239,4 +241,4 @@ If league nights have more than a handful of open tabs, **F1 WebSockets are the 
 - Floribert/Wynona class: HotA wiki vs `heroes.csv` — pick a source of truth.
 - Live overlapping-game rating last-write-wins — needs a two-game fixture.
 
-Logged against `main` `f491b39` on 20 Sep 2026.
+Logged against `main` `f491b39` on 20 Sep 2026. Progress marked 22 Sep 2026 against `main` `4ba7171` (#19, #21, #22) plus P0-2 leftover on `f/league-cache-expiry`.

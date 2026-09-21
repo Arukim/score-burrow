@@ -1,17 +1,73 @@
 ﻿@page "/"
 
-<PageTitle>Score Burrow - Game Score Calculator</PageTitle>
+<PageTitle>Score Burrow</PageTitle>
 
+@using Microsoft.AspNetCore.Components.Authorization
 @using Microsoft.EntityFrameworkCore
 @using Microsoft.Extensions.Caching.Memory
 @using ScoreBurrow.Data
-@using LeagueEntity = ScoreBurrow.Data.Entities.League
 @inject ScoreBurrowDbContext DbContext
 @inject IMemoryCache MemoryCache
+@inject AuthenticationStateProvider AuthenticationStateProvider
 
-<h1>Leagues</h1>
+<h1>Score Burrow</h1>
 
-<p>Browse leagues with recent activity.</p>
+<p>Track Heroes of Might and Magic 3 league games, ratings, and results.</p>
+
+<AuthorizeView>
+    <Authorized>
+        <h2>My leagues</h2>
+        @if (myLeagues == null)
+        {
+            <p><em>Loading...</em></p>
+        }
+        else if (!myLeagues.Any())
+        {
+            <div class="alert alert-info" role="alert">
+                You are not in a league yet.
+                <a href="/leagues" class="alert-link">Browse leagues</a>
+            </div>
+        }
+        else
+        {
+            <div class="row">
+                @foreach (var league in myLeagues)
+                {
+                    <div class="col-md-6 mb-3">
+                        <div class="card h-100">
+                            <div class="card-body">
+                                <h5 class="card-title">
+                                    @league.Name
+                                    @if (!league.IsActive)
+                                    {
+                                        <span class="badge bg-secondary ms-1">Archived</span>
+                                    }
+                                </h5>
+                                @if (!string.IsNullOrWhiteSpace(league.Description))
+                                {
+                                    <p class="card-text">@league.Description</p>
+                                }
+                                <a href="@($"/leagues/{league.Id}")" class="btn btn-primary">
+                                    View League <span class="oi oi-chevron-right" aria-hidden="true"></span>
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+    </Authorized>
+    <NotAuthorized>
+        <div class="alert alert-light border" role="alert">
+            <a href="/Account/Login?returnUrl=/" class="alert-link">Log in</a> to see your leagues.
+        </div>
+    </NotAuthorized>
+</AuthorizeView>
+
+<div class="d-flex justify-content-between align-items-center mt-2">
+    <h2 class="mb-0">Recently active</h2>
+    <a href="/leagues">Browse all leagues</a>
+</div>
 
 @if (leagues == null)
 {
@@ -94,10 +150,12 @@ else
 
 @code {
     private List<LeagueListItem>? leagues;
+    private List<LeagueListItem>? myLeagues;
 
     protected override async Task OnInitializedAsync()
     {
         await LoadLeaguesAsync();
+        await LoadMyLeaguesAsync();
     }
 
     private async Task LoadLeaguesAsync()
@@ -146,6 +204,41 @@ else
         leagues = cachedLeagues;
     }
 
+    private async Task LoadMyLeaguesAsync()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var userId = authState.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        if (string.IsNullOrEmpty(userId))
+        {
+            myLeagues = new List<LeagueListItem>();
+            return;
+        }
+
+        var cacheKey = $"home_my_leagues_{userId}";
+        if (!MemoryCache.TryGetValue(cacheKey, out List<LeagueListItem>? cached))
+        {
+            cached = await DbContext.LeagueMemberships
+                .AsNoTracking()
+                .Where(m => m.UserId == userId)
+                .OrderByDescending(m => m.League.IsActive)
+                .ThenBy(m => m.League.Name)
+                .Select(m => new LeagueListItem
+                {
+                    Id = m.League.Id,
+                    Name = m.League.Name,
+                    Description = m.League.Description,
+                    CreatedDate = m.League.CreatedDate,
+                    IsActive = m.League.IsActive
+                })
+                .ToListAsync();
+
+            MemoryCache.Set(cacheKey, cached, new MemoryCacheEntryOptions()
+                .SetAbsoluteExpiration(TimeSpan.FromMinutes(5)));
+        }
+
+        myLeagues = cached;
+    }
+
     private class LeagueListItem
     {
         public Guid Id { get; set; }
@@ -155,5 +248,6 @@ else
         public int MemberCount { get; set; }
         public int GameCount { get; set; }
         public DateTime? MostRecentGameDate { get; set; }
+        public bool IsActive { get; set; } = true;
     }
 }

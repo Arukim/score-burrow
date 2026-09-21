@@ -12,7 +12,8 @@ public static class CreateGameValidator
         IReadOnlyList<ParticipantRequest> participants,
         IReadOnlyDictionary<Guid, LeagueMembership> membershipsInLeague,
         IReadOnlySet<int> existingTownIds,
-        IReadOnlyDictionary<int, Hero> heroesById)
+        IReadOnlyDictionary<int, Hero> heroesById,
+        IReadOnlyList<int>? townPoolTownIds = null)
     {
         ArgumentNullException.ThrowIfNull(participants);
         ArgumentNullException.ThrowIfNull(membershipsInLeague);
@@ -60,6 +61,41 @@ public static class CreateGameValidator
             if (hero.TownId != participant.TownId)
             {
                 throw new ArgumentException($"Hero {hero.Name} does not belong to the selected town.");
+            }
+        }
+
+        if (townPoolTownIds is not { Count: > 0 })
+        {
+            return;
+        }
+
+        var pool = new List<int>();
+        var seen = new HashSet<int>();
+        foreach (var townId in townPoolTownIds)
+        {
+            if (townId <= 0 || !seen.Add(townId))
+            {
+                throw new ArgumentException("The town pool cannot contain duplicate or empty towns.");
+            }
+
+            if (!existingTownIds.Contains(townId))
+            {
+                throw new ArgumentException($"Town {townId} was not found.");
+            }
+
+            pool.Add(townId);
+        }
+
+        if (pool.Count != participants.Count)
+        {
+            throw new ArgumentException("The town pool must contain one town per player.");
+        }
+
+        foreach (var participant in participants)
+        {
+            if (!seen.Contains(participant.TownId))
+            {
+                throw new ArgumentException($"Town {participant.TownId} is not in the town pool.");
             }
         }
     }

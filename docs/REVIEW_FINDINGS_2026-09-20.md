@@ -10,7 +10,7 @@ Status key: **Done** = shipped after this review (PR). **Confirmed** = checked i
 
 ## Executive summary
 
-The league loop (roster → create game → complete / technical loss / cancel → Glicko + history) works. Complete, tech-loss, import, and Recalculate now share `PlayerStatisticsProjector` (#19). League/game/player pages and stats caches drop via a shared cache token on create/complete/TL/cancel (#21; player performance + absolute expiry on this branch). Create-game validates membership, unique players/colors, and hero↔town (#22). Remaining operator risk is **overlapping in-progress games** (P1-1/P1-2, no status CAS). README still claims color-adjusted win rate, invites, finish positions, and in-progress game editing that are not shipped.
+The league loop (roster → create game → complete / technical loss / cancel → Glicko + history) works. Complete, tech-loss, import, and Recalculate now share `PlayerStatisticsProjector` (#19). League/game/player pages and stats caches drop via a shared cache token on create/complete/TL/cancel (#21; player performance + absolute expiry on this branch). Create-game validates membership, unique players/colors, and hero↔town (#22). Remaining operator risk is **overlapping in-progress games** (P1-1/P1-2, no status CAS). README no longer claims invites, color-adjusted win rate, or in-progress game editing (P2-19–P2-28). Position is still the start seat, not a finish place (P2-4).
 
 Azure **F1 + SQL free serverless cannot be kept always-on** without exhausting quotas. See [Keep-alive on Azure free tier](#keep-alive-on-azure-free-tier).
 
@@ -86,16 +86,16 @@ Azure **F1 + SQL free serverless cannot be kept always-on** without exhausting q
 
 | ID | Severity | Location | Finding | Status |
 |----|----------|----------|---------|--------|
-| P2-19 | — | README vs `CreateGame.razor` | README/GAME_MANAGEMENT doc: 4-step wizard + automatic bid gold. Actual: **5 steps**, town pool, separate gold calculator, dead `RecalculateGold` / `BidAmount`. | Confirmed |
-| P2-20 | — | README | “Invite players”, “game editing in progress”, “leaderboards”, “color-adjusted WR” overstated. | Confirmed |
-| P2-21 | — | `AUTHENTICATION.md` | Still describes `Login.razor` / `Register.razor`; actual are `.cshtml` Razor Pages. | Confirmed |
-| P2-22 | — | `Towns.razor` | Town detail `href` missing leading `/`. | Likely |
-| P2-23 | — | `NavMenu.razor` | Brand still “ScoreBurrow.Web”; leftover `SurveyPrompt.razor`. No heroes index. | Confirmed |
-| P2-24 | — | `ManageGame.razor` | Color as `bg-info` text, not `PlayerColorBadge`. No rating-delta after complete. | Confirmed |
-| P2-25 | — | Create/manage game when anonymous | Permission error, no login CTA (unlike league create). | Confirmed |
-| P2-26 | — | Home vs `/leagues` | Near-duplicate browse; no “My leagues”; archived leagues lack list badge. | Confirmed |
-| P2-27 | — | Town pool | Wizard-only; not persisted on `Game`. | Confirmed |
-| P2-28 | — | `Game.Notes` | Shown if set; only auto-filled on TL; not editable. | Confirmed |
+| P2-19 | — | README vs `CreateGame.razor` | README/GAME_MANAGEMENT doc: 4-step wizard + automatic bid gold. Actual: **5 steps**, town pool, separate gold calculator, dead `RecalculateGold` / `BidAmount`. | **Done** — docs match the 5-step wizard; dead bid gold removed |
+| P2-20 | — | README | “Invite players”, “game editing in progress”, “leaderboards”, “color-adjusted WR” overstated. | **Done** — README describes add-member, no color-adjusted WR; editing and leaderboards are planned |
+| P2-21 | — | `AUTHENTICATION.md` | Still describes `Login.razor` / `Register.razor`; actual are `.cshtml` Razor Pages. | **Done** |
+| P2-22 | — | `Towns.razor` | Town detail `href` missing leading `/`. | **Done** |
+| P2-23 | — | `NavMenu.razor` | Brand still “ScoreBurrow.Web”; leftover `SurveyPrompt.razor`. No heroes index. | **Done** — brand “Score Burrow”; survey removed; `/knowledgebase/heroes` |
+| P2-24 | — | `ManageGame.razor` | Color as `bg-info` text, not `PlayerColorBadge`. No rating-delta after complete. | **Done** — badge on manage; rating change on manage and game details |
+| P2-25 | — | Create/manage game when anonymous | Permission error, no login CTA (unlike league create). | **Done** |
+| P2-26 | — | Home vs `/leagues` | Near-duplicate browse; no “My leagues”; archived leagues lack list badge. | **Done** — home is recent + my leagues; directory shows Archived |
+| P2-27 | — | Town pool | Wizard-only; not persisted on `Game`. | **Done** — `Game.TownPoolTownIds` |
+| P2-28 | — | `Game.Notes` | Shown if set; only auto-filled on TL; not editable. | **Done** — optional on create, editable on manage |
 
 ---
 

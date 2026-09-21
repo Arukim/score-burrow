@@ -48,7 +48,8 @@ namespace ScoreBurrow.Web.Pages.Account
             _logger.LogInformation("Login POST handler called for {Email}", Input?.Email ?? "null");
             
             returnUrl ??= Url.Content("~/");
-            
+            ReturnUrl = returnUrl;
+
             _logger.LogInformation("ReturnUrl: {ReturnUrl}", returnUrl);
 
             if (ModelState.IsValid && Input != null)

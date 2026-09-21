@@ -44,7 +44,8 @@ public class GameService : IGameService
             .Where(m => membershipIds.Contains(m.Id) && m.LeagueId == leagueId)
             .ToDictionaryAsync(m => m.Id);
 
-        var townIds = participants.Select(p => p.TownId).Distinct().ToList();
+        var townPoolTownIds = request.TownPoolTownIds ?? new List<int>();
+        var townIds = participants.Select(p => p.TownId).Concat(townPoolTownIds).Distinct().ToList();
         var existingTownIds = (await _context.Towns
             .Where(t => townIds.Contains(t.Id))
             .Select(t => t.Id)
@@ -63,7 +64,7 @@ public class GameService : IGameService
                 .Where(h => heroIds.Contains(h.Id))
                 .ToDictionaryAsync(h => h.Id);
 
-        CreateGameValidator.Validate(participants, membershipsById, existingTownIds, heroesById);
+        CreateGameValidator.Validate(participants, membershipsById, existingTownIds, heroesById, townPoolTownIds);
 
         // Create game
         var game = new Game
@@ -71,6 +72,8 @@ public class GameService : IGameService
             Id = Guid.NewGuid(),
             LeagueId = leagueId,
             MapName = request.MapName,
+            Notes = NormalizeNotes(request.Notes),
+            TownPoolTownIds = TownPoolIds.Format(townPoolTownIds),
             StartTime = DateTime.UtcNow,
             Status = GameStatus.InProgress,
             CreatedBy = userId,
@@ -303,6 +306,7 @@ public class GameService : IGameService
             StartTime = DateTime.UtcNow,
             Status = GameStatus.InProgress,
             Notes = $"Restarted after technical loss in game {gameId}",
+            TownPoolTownIds = game.TownPoolTownIds,
             CreatedBy = userId,
             CreatedOn = DateTime.UtcNow
         };
@@ -408,6 +412,26 @@ public class GameService : IGameService
             return null;
         }
 
+        var ratingChanges = await _context.RatingHistory
+            .AsNoTracking()
+            .Where(h => h.GameId == game.Id)
+            .Select(h => new { h.LeagueMembershipId, h.PreviousRating, h.NewRating, h.CalculatedAt })
+            .ToListAsync();
+        var ratingChangeByMembership = ratingChanges
+            .GroupBy(h => h.LeagueMembershipId)
+            .ToDictionary(
+                g => g.Key,
+                g => g.OrderByDescending(h => h.CalculatedAt).First().NewRating
+                    - g.OrderByDescending(h => h.CalculatedAt).First().PreviousRating);
+
+        var poolIds = TownPoolIds.Parse(game.TownPoolTownIds);
+        var townNames = poolIds.Count == 0
+            ? new Dictionary<int, string>()
+            : await _context.Towns
+                .AsNoTracking()
+                .Where(t => poolIds.Contains(t.Id))
+                .ToDictionaryAsync(t => t.Id, t => t.Name);
+
         var dto = new GameDetailsDto
         {
             Id = game.Id,
@@ -415,6 +439,8 @@ public class GameService : IGameService
             MapName = game.MapName,
             StartTime = game.StartTime,
             Status = game.Status,
+            Notes = game.Notes,
+            TownPool = poolIds.Where(townNames.ContainsKey).Select(id => townNames[id]).ToList(),
             Participants = game.Participants
                 .OrderBy(p => p.Position)
                 .Select(p => new ParticipantDto
@@ -428,12 +454,53 @@ public class GameService : IGameService
                     HeroName = p.Hero?.Name,
                     GoldTrade = p.GoldTrade,
                     IsWinner = p.IsWinner,
-                    IsTechnicalLoss = p.IsTechnicalLoss
+                    IsTechnicalLoss = p.IsTechnicalLoss,
+                    RatingChange = ratingChangeByMembership.TryGetValue(p.LeagueMembershipId, out var change)
+                        ? change
+                        : null
                 })
                 .ToList()
         };
 
         return dto;
+    }
+
+    public async Task<bool> UpdateGameNotesAsync(Guid gameId, string userId, string? notes)
+    {
+        var game = await _context.Games.FirstOrDefaultAsync(g => g.Id == gameId);
+        if (game == null)
+        {
+            return false;
+        }
+
+        if (!await _leagueService.IsAdminOrOwnerAsync(userId, game.LeagueId))
+        {
+            throw new UnauthorizedAccessException("User does not have permission to manage games in this league.");
+        }
+
+        game.Notes = NormalizeNotes(notes);
+        game.ModifiedBy = userId;
+        game.ModifiedOn = DateTime.UtcNow;
+        await _context.SaveChangesAsync();
+
+        _leagueService.InvalidateLeagueCache(game.LeagueId, userId, game.Id);
+        return true;
+    }
+
+    private static string? NormalizeNotes(string? notes)
+    {
+        if (string.IsNullOrWhiteSpace(notes))
+        {
+            return null;
+        }
+
+        var trimmed = notes.Trim();
+        if (trimmed.Length > 2000)
+        {
+            throw new ArgumentException("Notes cannot be longer than 2000 characters.");
+        }
+
+        return trimmed;
     }
 
     private async Task SaveCompletedGameStatisticsAsync(Game game)

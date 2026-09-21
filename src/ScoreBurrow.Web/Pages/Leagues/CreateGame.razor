@@ -17,15 +17,22 @@
 
 <h1>Create New Game</h1>
 
-@if (!canManage)
+@if (isLoading)
+{
+    <p><em>Loading...</em></p>
+}
+else if (!isAuthenticated)
+{
+    <div class="alert alert-warning" role="alert">
+        You must be logged in to create a game.
+        <a href="/Account/Login?returnUrl=/leagues/@LeagueId/game/create" class="alert-link">Login here</a>
+    </div>
+}
+else if (!canManage)
 {
     <div class="alert alert-danger">
         You do not have permission to create games in this league.
     </div>
-}
-else if (isLoading)
-{
-    <p><em>Loading...</em></p>
 }
 else
 {
@@ -54,6 +61,10 @@ else
                 <div class="mb-3">
                     <label class="form-label">Map Name</label>
                     <input type="text" class="form-control" @bind="mapName" placeholder="Enter map name" />
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Notes</label>
+                    <textarea class="form-control" rows="3" maxlength="2000" @bind="notes" placeholder="Optional notes"></textarea>
                 </div>
                 <div class="mb-3">
                     <label class="form-label">Number of Players</label>
@@ -364,6 +375,15 @@ else
                 <div class="mb-3">
                     <strong>Map:</strong> @mapName
                 </div>
+                @if (!string.IsNullOrWhiteSpace(notes))
+                {
+                    <div class="mb-3">
+                        <strong>Notes:</strong> @notes
+                    </div>
+                }
+                <div class="mb-3">
+                    <strong>Town pool:</strong> @string.Join(", ", GetSelectedTowns().Select(t => t.Name))
+                </div>
                 <h5>Participants</h5>
                 <table class="table">
                     <thead>
@@ -418,6 +438,7 @@ else
     public Guid LeagueId { get; set; }
 
     private string? userId;
+    private bool isAuthenticated;
     private bool canManage = false;
     private bool isLoading = true;
     private bool isCreating = false;
@@ -425,6 +446,7 @@ else
 
     private int currentStep = 1;
     private string mapName = "";
+    private string notes = "";
     private int playerCount = 4;
 
     private List<LeagueMembership> availableMembers = new();
@@ -442,7 +464,8 @@ else
         var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
         var user = authState.User;
         
-        if (user.Identity?.IsAuthenticated ?? false)
+        isAuthenticated = user.Identity?.IsAuthenticated ?? false;
+        if (isAuthenticated)
         {
             userId = user.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
             
@@ -671,33 +694,6 @@ else
         }
     }
 
-    private void RecalculateGold()
-    {
-        // Reset all gold values
-        foreach (var assignment in playerAssignments)
-        {
-            assignment.NetGold = -assignment.BidAmount;
-        }
-
-        // Distribute bids according to rules
-        for (int i = 0; i < playerAssignments.Count; i++)
-        {
-            var bidAmount = playerAssignments[i].BidAmount;
-            if (bidAmount > 0)
-            {
-                var remainingPlayers = playerCount - i - 1;
-                if (remainingPlayers > 0)
-                {
-                    var sharePerPlayer = bidAmount / remainingPlayers;
-                    for (int j = i + 1; j < playerAssignments.Count; j++)
-                    {
-                        playerAssignments[j].NetGold += sharePerPlayer;
-                    }
-                }
-            }
-        }
-    }
-
     private async Task SubmitGame()
     {
         if (string.IsNullOrEmpty(userId))
@@ -714,6 +710,8 @@ else
             var request = new CreateGameRequest
             {
                 MapName = mapName,
+                Notes = notes,
+                TownPoolTownIds = selectedTownsPool.ToList(),
                 Participants = playerAssignments.Select(p => new ParticipantRequest
                 {
                     LeagueMembershipId = p.MembershipId,
@@ -743,7 +741,6 @@ else
         public int Position { get; set; }
         public int TownId { get; set; }
         public int? HeroId { get; set; }
-        public int BidAmount { get; set; }
         public int NetGold { get; set; }
         public string TownName { get; set; } = "";
         public string? HeroName { get; set; }

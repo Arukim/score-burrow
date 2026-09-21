@@ -5,6 +5,8 @@ namespace ScoreBurrow.Web.Models;
 public class CreateGameRequest
 {
     public required string MapName { get; set; }
+    public string? Notes { get; set; }
+    public List<int> TownPoolTownIds { get; set; } = new();
     public List<ParticipantRequest> Participants { get; set; } = new();
 }
 

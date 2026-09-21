@@ -13,6 +13,11 @@ public class Game : IAuditableEntity
     public Guid? WinnerId { get; set; }
     public string? Notes { get; set; }
 
+    /// <summary>
+    /// Comma-separated town ids chosen as the trading pool when the game was created.
+    /// </summary>
+    public string? TownPoolTownIds { get; set; }
+
     // Audit fields
     public string CreatedBy { get; set; } = string.Empty;
     public DateTime CreatedOn { get; set; }

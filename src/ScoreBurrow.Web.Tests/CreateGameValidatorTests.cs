@@ -70,6 +70,19 @@ public class CreateGameValidatorTests
     }
 
     [Fact]
+    public void Validate_RejectsPlayerTownOutsidePool()
+    {
+        var act = () => CreateGameValidator.Validate(
+            TwoPlayers(),
+            Memberships(),
+            new HashSet<int> { 1, 2, 3 },
+            Heroes(),
+            townPoolTownIds: [1, 3]);
+
+        act.Should().Throw<ArgumentException>().WithMessage("*not in the town pool*");
+    }
+
+    [Fact]
     public void Validate_AllowsMissingHero()
     {
         var act = () => CreateGameValidator.Validate(

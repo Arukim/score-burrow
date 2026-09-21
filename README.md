@@ -40,7 +40,9 @@ score-burrow/
 │   │   ├── Models/                 # Import models
 │   │   ├── Services/               # Import services
 │   │   └── Program.cs              # CLI entry point
-│   └── ScoreBurrow.DataImport.Tests/ # Unit tests for import functionality
+│   ├── ScoreBurrow.Data.Tests/     # Stats projector tests
+│   ├── ScoreBurrow.DataImport.Tests/ # Unit tests for import functionality
+│   └── ScoreBurrow.Web.Tests/      # Game create and validation tests
 ├── add-migration.sh                # Helper script for creating migrations
 ├── update-database.sh              # Helper script for applying migrations
 ├── deploy-app.sh                   # Application deployment script
@@ -131,15 +133,16 @@ dotnet test
 - ✅ **League Management**: 
   - Create leagues with custom names and descriptions
   - Owner-based access control
-  - Invite players to leagues
+  - Add members by email or as unregistered nicknames
   - Role management (Owner, Admin, Member)
 - ✅ **Game Tracking**:
-  - Record games with detailed HoMM3 data (towns, heroes, 8-color player system)
-  - Winner tracking and position recording
-  - Technical loss tracking (losses to neutral mobs)
-  - Gold trade tracking
-  - Map name and notes
-  - Town pool selection in game creation wizard
+  - Five-step create wizard: setup, colors, town pool, town/hero/gold, review
+  - Record games with HoMM3 data (towns, heroes, 8-color player system)
+  - Winner tracking; position is the start seat from color order
+  - Complete, technical loss, and cancel for in-progress games
+  - Gold recorded per player, with a separate calculator in the wizard
+  - Map name and editable notes
+  - Town pool saved on the game
 - ✅ **Glicko-2 Rating System**:
   - Multi-player game adaptation (1 winner vs N-1 losers)
   - Rating, Rating Deviation, and Volatility tracking
@@ -150,8 +153,7 @@ dotnet test
   - Win rate and average position
   - Favorite town and hero analytics
   - Current rating display
-  - **Color-Adjusted Win Rate**: Player win rates normalized by expected color performance
-  - **Color Distribution Analysis**: Breakdown of colors played by game size
+  - **Color distribution**: Colors played, broken down by game size
   - Town and hero performance statistics
   - Rating history visualization
 - ✅ **HoMM3 Reference Data**:
@@ -168,18 +170,8 @@ dotnet test
 
 ### Statistics Features
 
-#### Color-Weighted Performance
-The system analyzes league-wide color statistics (365-day window) to calculate:
-- **Expected Win Rate by Color**: Each color's performance in different game sizes
-- **Color-Adjusted Win Rate**: Player performance weighted by the difficulty of colors played
-  - Formula: `Sum(isWinner ? (1.0 / expectedColorWinRate) : 0) / totalGames`
-  - Example: Winning with a color that has 25% expected win rate counts more than winning with a 40% win rate color
-
 #### Color Distribution
-Shows the distribution of colors a player has played, broken down by game size:
-- Percentage of games played with each color
-- Visual progress bars for easy interpretation
-- Minimum 3 games required per game size to display statistics
+The player page shows colors played, broken down by game size, once that size has enough games. Color-adjusted win rate is not calculated.
 
 ## Database Schema
 
@@ -306,18 +298,19 @@ See [Infrastructure README](infrastructure/README.md) for detailed deployment do
 - [x] CSV import tool for historical data
 - [x] Rating history audit trail
 - [x] Knowledge base pages for towns and heroes
-- [x] Color-adjusted win rate statistics
-- [x] Color distribution analysis by game size
-- [x] Town pool selection in game wizard
+- [x] Color distribution by game size
+- [x] Town pool saved with the game
+- [x] Editable game notes
+- [x] Complete, technical loss, and cancel from the manage page
 - [x] Added Bulwark town and 17 heroes (Chieftain and Elder classes)
 - [x] Weekend F1 keep-alive (Sat–Sun 16:50 AEST, 10 hours)
 
 ### In Progress
-- [ ] Game editing and management UI
 - [ ] Enhanced player profile pages
-- [ ] Leaderboards and rankings
 
 ### Planned
+- [ ] Edit in-progress games without rewriting ratings
+- [ ] Leaderboards and rankings
 - [ ] Real-time game updates with SignalR
 - [ ] Mobile-responsive improvements
 - [ ] Export functionality (CSV, PDF)

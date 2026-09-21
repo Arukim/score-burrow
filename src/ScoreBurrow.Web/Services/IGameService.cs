@@ -28,4 +28,9 @@ public interface IGameService
     /// Gets game details for management. Returns null if user lacks permission or game not found.
     /// </summary>
     Task<GameDetailsDto?> GetGameForManagementAsync(Guid gameId, string userId);
+
+    /// <summary>
+    /// Sets or clears game notes. Requires admin or owner role.
+    /// </summary>
+    Task<bool> UpdateGameNotesAsync(Guid gameId, string userId, string? notes);
 }

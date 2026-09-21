@@ -1,0 +1,71 @@
+@page "/knowledgebase/heroes"
+
+<PageTitle>Heroes - Knowledge Base</PageTitle>
+
+@using Microsoft.EntityFrameworkCore
+@using Microsoft.Extensions.Caching.Memory
+@using ScoreBurrow.Data
+@using HeroEntity = ScoreBurrow.Data.Entities.Hero
+@inject ScoreBurrowDbContext DbContext
+@inject IMemoryCache MemoryCache
+
+<h1>Heroes</h1>
+
+<p>Heroes of Might and Magic 3, grouped by town.</p>
+
+@if (heroes == null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    @foreach (var townGroup in heroes.GroupBy(h => h.TownId).OrderBy(g => g.First().Town.Name))
+    {
+        var town = townGroup.First().Town;
+        <h2 class="h4 mt-4">
+            <a href="@($"/knowledgebase/town/{town.Id}")">@town.Name</a>
+        </h2>
+        <div class="table-responsive">
+            <table class="table table-sm table-striped">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Class</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var hero in townGroup.OrderBy(h => h.HeroClass).ThenBy(h => h.Name))
+                    {
+                        <tr>
+                            <td>@hero.Name</td>
+                            <td><span class="badge bg-secondary">@hero.HeroClass</span></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+}
+
+@code {
+    private List<HeroEntity>? heroes;
+
+    protected override async Task OnInitializedAsync()
+    {
+        const string cacheKey = "heroes_index";
+        if (!MemoryCache.TryGetValue(cacheKey, out List<HeroEntity>? cachedHeroes))
+        {
+            cachedHeroes = await DbContext.Heroes
+                .AsNoTracking()
+                .Include(h => h.Town)
+                .ToListAsync();
+
+            var cacheOptions = new MemoryCacheEntryOptions()
+                .SetSlidingExpiration(TimeSpan.FromHours(1));
+
+            MemoryCache.Set(cacheKey, cachedHeroes, cacheOptions);
+        }
+
+        heroes = cachedHeroes;
+    }
+}

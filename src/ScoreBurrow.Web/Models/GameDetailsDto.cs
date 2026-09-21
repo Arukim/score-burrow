@@ -9,6 +9,8 @@ public class GameDetailsDto
     public required string MapName { get; set; }
     public DateTime StartTime { get; set; }
     public GameStatus Status { get; set; }
+    public string? Notes { get; set; }
+    public List<string> TownPool { get; set; } = new();
     public List<ParticipantDto> Participants { get; set; } = new();
 }
 
@@ -24,4 +26,5 @@ public class ParticipantDto
     public int GoldTrade { get; set; }
     public bool IsWinner { get; set; }
     public bool IsTechnicalLoss { get; set; }
+    public double? RatingChange { get; set; }
 }

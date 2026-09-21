@@ -41,6 +41,53 @@ public class GameServiceCreateGameTests
     }
 
     [Fact]
+    public async Task CreateGame_PersistsNotesAndTownPool()
+    {
+        var leagueId = Guid.NewGuid();
+        var playerA = Guid.NewGuid();
+        var playerB = Guid.NewGuid();
+
+        await using var context = CreateContext();
+        SeedLeague(context, leagueId, playerA, playerB);
+        await context.SaveChangesAsync();
+
+        var request = TwoPlayerRequest(playerA, playerB);
+        request.Notes = "  evening session  ";
+        request.TownPoolTownIds = [1, 2];
+
+        var service = CreateService(context, new StubLeagueService());
+        var gameId = await service.CreateGameAsync(leagueId, "admin", request);
+
+        var game = await context.Games.SingleAsync(g => g.Id == gameId);
+        game.Notes.Should().Be("evening session");
+        game.TownPoolTownIds.Should().Be("1,2");
+    }
+
+    [Fact]
+    public async Task UpdateGameNotes_TrimsAndCanClear()
+    {
+        var leagueId = Guid.NewGuid();
+        var playerA = Guid.NewGuid();
+        var playerB = Guid.NewGuid();
+
+        await using var context = CreateContext();
+        SeedLeague(context, leagueId, playerA, playerB);
+        await context.SaveChangesAsync();
+
+        var leagues = new StubLeagueService();
+        var service = CreateService(context, leagues);
+        var gameId = await service.CreateGameAsync(leagueId, "admin", TwoPlayerRequest(playerA, playerB));
+
+        leagues.InvalidateCount = 0;
+        (await service.UpdateGameNotesAsync(gameId, "admin", "  restarted early  ")).Should().BeTrue();
+        (await context.Games.SingleAsync(g => g.Id == gameId)).Notes.Should().Be("restarted early");
+
+        (await service.UpdateGameNotesAsync(gameId, "admin", "   ")).Should().BeTrue();
+        (await context.Games.SingleAsync(g => g.Id == gameId)).Notes.Should().BeNull();
+        leagues.InvalidateCount.Should().Be(2);
+    }
+
+    [Fact]
     public async Task CreateGame_RejectsMembershipFromAnotherLeague()
     {
         var leagueId = Guid.NewGuid();

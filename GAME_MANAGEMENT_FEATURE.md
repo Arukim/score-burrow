@@ -30,33 +30,34 @@ A comprehensive game management system has been added to ScoreBurrow.Web, suppor
 #### 3. Pages
 
 ##### CreateGame.razor (`/leagues/{leagueId}/game/create`)
-Multi-step wizard with 4 stages:
+Multi-step wizard with 5 stages. Anonymous visitors get a login link. League members who are not admins see a permission error.
 
 **Step 1: Basic Setup**
 - Map name input
+- Optional notes
 - Number of players selection (2-8)
 - Player selection from league members
 
 **Step 2: Color Assignment**
-- Automatic color assignment
-- "Shuffle Colors" button for randomization
-- Manual color adjustment via dropdowns
-- Position determined by color (Red=1, Blue=2, etc.)
+- Colors start in shuffled seat order
+- "Shuffle Colors" button
+- Manual color adjustment via dropdowns; a taken color swaps
+- Position is the start seat from color order (Red=1, Blue=2, and so on). It is not a finish place.
 
-**Step 3: Town, Hero & Gold Trading**
-- Town selection per player (required)
+**Step 3: Town Pool**
+- Optional bans
+- Select exactly one town per player for the trading pool
+- Randomize button
+- The chosen town ids are stored on the game
+
+**Step 4: Town, Hero & Gold**
+- Town selection is limited to the pool
 - Hero selection filtered by town (optional)
-- Bid amount input
-- **Automatic gold distribution**:
-  - Player 1 bid → split among players 2-4
-  - Player 2 bid → split among players 3-4
-  - Player 3 bid → goes to player 4
-  - Player 4 bid → no distribution
-- Real-time gold calculation display
+- Gold is entered per player
+- A separate gold calculator turns ordered stakes into net gold, then "Copy to Assignments" writes those values. It does not apply bids automatically.
 
-**Step 4: Review & Confirm**
-- Summary of all game settings
-- Participant details table
+**Step 5: Review & Confirm**
+- Map, notes, town pool, and participant table
 - "Start Game" button to create
 
 ##### ManageGame.razor (`/leagues/{leagueId}/game/{gameId}/manage`)
@@ -75,7 +76,7 @@ Management interface with three action cards:
 - Applies technical loss penalty to culprit
 - Creates new game with same settings
 - Culprit receives **-1000 gold penalty**
-- Old game marked as Cancelled
+- Old game marked as Completed, with a technical-loss note
 - Redirects to new game management
 
 **Cancel Game Card**
@@ -94,15 +95,7 @@ Management interface with three action cards:
 ## Features
 
 ### Gold Trading Logic
-The system implements the specified gold distribution:
-```
-Player 1 bid: divided among players 2, 3, 4
-Player 2 bid: divided among players 3, 4
-Player 3 bid: goes entirely to player 4
-Player 4 bid: no distribution
-```
-
-Net gold is calculated automatically and displayed in real-time.
+Gold is not bid automatically. Each player has a gold field. The calculator on step 4 takes an ordered list of players and stakes: a stake is paid by that player and split across the players selected in later rows. "Copy to Assignments" writes the result into the gold fields. The review step shows those values, including a negative amount for the player who paid.
 
 ### Color Assignment
 - Only first N colors available based on player count
@@ -147,17 +140,18 @@ This ensures calculations use ratings from when the game began, not completion t
 ```
 InProgress (on creation)
     ↓
-Completed (winner selected) OR Cancelled (technical loss/cancel)
+Completed (winner selected, or technical loss) OR Cancelled (cancel only)
 ```
 
 ### Technical Loss Workflow
 1. Mark culprit participant as `IsTechnicalLoss = true`
 2. Apply rating penalty
-3. Cancel current game
+3. Mark the current game Completed and store a technical-loss note
 4. Create new game:
-   - Same map, players, towns, heroes, colors
+   - Same map, town pool, players, towns, heroes, colors
    - Culprit gets -1000 gold
    - New rating snapshots (culprit has reduced rating)
+   - Note that it was restarted after the technical loss
 
 ## Database Impact
 
@@ -173,7 +167,7 @@ No schema changes required - all existing tables support this feature:
 ### Creating a Game
 1. Navigate to league page
 2. Click "New Game" button (admins/owners only)
-3. Complete 4-step wizard
+3. Complete the 5-step wizard
 4. Game starts in "In Progress" status
 
 ### Managing an In-Progress Game
@@ -197,7 +191,7 @@ No schema changes required - all existing tables support this feature:
 ## Future Enhancements
 
 Potential improvements for future iterations:
-- [ ] Game history/notes field
+- [x] Game notes (optional on create, editable on the manage page)
 - [ ] Export game data
 - [ ] Rematch functionality
 - [ ] Game templates for common setups

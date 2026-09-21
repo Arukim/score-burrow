@@ -2,6 +2,7 @@
 
 <PageTitle>Manage Game</PageTitle>
 
+@using Microsoft.AspNetCore.Components
 @using Microsoft.AspNetCore.Components.Authorization
 @using ScoreBurrow.Data.Enums
 @using ScoreBurrow.Web.Models
@@ -21,6 +22,13 @@
 {
     <p><em>Loading...</em></p>
 }
+else if (!isAuthenticated)
+{
+    <div class="alert alert-warning" role="alert">
+        You must be logged in to manage a game.
+        <a href="/Account/Login?returnUrl=/leagues/@LeagueId/game/@GameId/manage" class="alert-link">Login here</a>
+    </div>
+}
 else if (game == null)
 {
     <div class="alert alert-danger">
@@ -39,6 +47,18 @@ else
         </div>
         <div class="card-body">
             <p><strong>Started:</strong> @game.StartTime.ToString("MMM dd, yyyy HH:mm")</p>
+            @if (game.TownPool.Count > 0)
+            {
+                <p><strong>Town pool:</strong> @string.Join(", ", game.TownPool)</p>
+            }
+
+            <div class="mb-3">
+                <label class="form-label" for="game-notes"><strong>Notes</strong></label>
+                <textarea id="game-notes" class="form-control" rows="3" maxlength="2000" @bind="notesDraft"></textarea>
+                <button class="btn btn-outline-primary mt-2" @onclick="SaveNotes" disabled="@isProcessing">
+                    Save notes
+                </button>
+            </div>
             
             <h5>Participants</h5>
             <table class="table">
@@ -50,6 +70,10 @@ else
                         <th>Town</th>
                         <th>Hero</th>
                         <th>Gold</th>
+                        @if (showRatingChanges)
+                        {
+                            <th>Rating</th>
+                        }
                     </tr>
                 </thead>
                 <tbody>
@@ -58,12 +82,16 @@ else
                         <tr>
                             <td>@participant.Position</td>
                             <td>@participant.PlayerName</td>
-                            <td><span class="badge bg-info">@participant.PlayerColor</span></td>
+                            <td><PlayerColorBadge PlayerColor="@participant.PlayerColor" /></td>
                             <td>@participant.TownName</td>
                             <td>@(participant.HeroName ?? "None")</td>
                             <td class="@(participant.GoldTrade >= 0 ? "text-success" : "text-danger")">
                                 @(participant.GoldTrade >= 0 ? "+" : "")@participant.GoldTrade
                             </td>
+                            @if (showRatingChanges)
+                            {
+                                <td>@FormatRatingChange(participant.RatingChange)</td>
+                            }
                         </tr>
                     }
                 </tbody>
@@ -195,6 +223,7 @@ else
     public Guid GameId { get; set; }
 
     private string? userId;
+    private bool isAuthenticated;
     private bool isLoading = true;
     private bool isProcessing = false;
     private string? errorMessage;
@@ -202,6 +231,8 @@ else
     private bool showCancelModal = false;
 
     private GameDetailsDto? game;
+    private string notesDraft = "";
+    private bool showRatingChanges => game?.Participants.Any(p => p.RatingChange.HasValue) == true;
     private Guid selectedWinnerId = Guid.Empty;
     private Guid selectedCulpritId = Guid.Empty;
     private Guid loadedGameId;
@@ -211,7 +242,8 @@ else
         var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
         var user = authState.User;
 
-        if (user.Identity?.IsAuthenticated ?? false)
+        isAuthenticated = user.Identity?.IsAuthenticated ?? false;
+        if (isAuthenticated)
         {
             userId = user.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
         }
@@ -219,7 +251,7 @@ else
 
     protected override async Task OnParametersSetAsync()
     {
-        if (string.IsNullOrEmpty(userId))
+        if (!isAuthenticated || string.IsNullOrEmpty(userId))
         {
             isLoading = false;
             return;
@@ -247,10 +279,56 @@ else
         try
         {
             game = await GameService.GetGameForManagementAsync(GameId, userId);
+            notesDraft = game?.Notes ?? "";
         }
         catch (Exception ex)
         {
             errorMessage = $"Error loading game: {ex.Message}";
+        }
+    }
+
+    private MarkupString FormatRatingChange(double? change)
+    {
+        if (!change.HasValue)
+        {
+            return new MarkupString("<span class=\"text-muted\">—</span>");
+        }
+
+        var css = change.Value >= 0 ? "text-success" : "text-danger";
+        var sign = change.Value >= 0 ? "+" : "";
+        return new MarkupString($"<span class=\"{css}\">{sign}{change.Value:0.0}</span>");
+    }
+
+    private async Task SaveNotes()
+    {
+        if (string.IsNullOrEmpty(userId))
+        {
+            errorMessage = "User not authenticated.";
+            return;
+        }
+
+        isProcessing = true;
+        errorMessage = null;
+
+        try
+        {
+            var saved = await GameService.UpdateGameNotesAsync(GameId, userId, notesDraft);
+            if (!saved)
+            {
+                errorMessage = "Failed to save notes.";
+            }
+            else
+            {
+                await LoadGameAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error saving notes: {ex.Message}";
+        }
+        finally
+        {
+            isProcessing = false;
         }
     }
 

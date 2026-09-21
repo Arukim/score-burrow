@@ -30,12 +30,12 @@ The infrastructure now passes the SQL connection string to the App Service throu
    - `Models/ApplicationUser.cs` - Custom Identity user model
 
 2. **Data**
-   - `Data/ApplicationDbContext.cs` - Identity database context
+   - `ScoreBurrow.Data/ScoreBurrowDbContext.cs` - EF Core context, including ASP.NET Identity
 
-3. **Pages**
-   - `Pages/Account/Login.razor` - Login page with email/password form
-   - `Pages/Account/Register.razor` - User registration page
-   - `Pages/Account/Logout.razor` - Logout handler
+3. **Pages** (Razor Pages, not Blazor components)
+   - `Pages/Account/Login.cshtml` - Login page with email/password form
+   - `Pages/Account/Register.cshtml` - User registration page
+   - `Pages/Account/Logout.cshtml` - Logout handler
 
 4. **Migrations**
    - `Migrations/[timestamp]_InitialIdentity.cs` - EF Core migration for Identity tables
@@ -82,7 +82,7 @@ The application can automatically apply migrations on startup by adding this cod
 ```csharp
 using (var scope = app.Services.CreateScope())
 {
-    var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+    var db = scope.ServiceProvider.GetRequiredService<ScoreBurrowDbContext>();
     db.Database.Migrate();
 }
 ```

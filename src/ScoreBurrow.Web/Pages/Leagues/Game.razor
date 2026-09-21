@@ -48,6 +48,12 @@ else
                             <strong>Ended:</strong> @game.EndTime.Value.ToString("MMM dd, yyyy HH:mm")
                         </div>
                     }
+                    @if (game.TownPool.Count > 0)
+                    {
+                        <div class="mb-2">
+                            <strong>Town pool:</strong> @string.Join(", ", game.TownPool)
+                        </div>
+                    }
                     @if (!string.IsNullOrWhiteSpace(game.Notes))
                     {
                         <div class="mb-2">
@@ -86,6 +92,10 @@ else
                         <th>Color</th>
                         <th>Gold Trade</th>
                         <th>Technical Loss</th>
+                        @if (game.RatingChanges.Count > 0)
+                        {
+                            <th>Rating</th>
+                        }
                         <th></th>
                     </tr>
                 </thead>
@@ -110,6 +120,21 @@ else
                                 @(participant.GoldTrade > 0 ? "+" : "")@participant.GoldTrade
                             </td>
                             <td>@(participant.IsTechnicalLoss ? "Yes" : "No")</td>
+                            @if (game.RatingChanges.Count > 0)
+                            {
+                                <td>
+                                    @if (game.RatingChanges.TryGetValue(participant.LeagueMembershipId, out var change))
+                                    {
+                                        <span class="@(change >= 0 ? "text-success" : "text-danger")">
+                                            @(change >= 0 ? "+" : "")@change.ToString("0.0")
+                                        </span>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted">—</span>
+                                    }
+                                </td>
+                            }
                             <td>
                                 <a href="/leagues/@LeagueId/player/@participant.LeagueMembershipId" class="btn btn-sm btn-outline-primary">
                                     View Player <span class="oi oi-person" aria-hidden="true"></span>
@@ -159,6 +184,20 @@ else
             if (gameData == null)
                 return;
 
+            var poolIds = TownPoolIds.Parse(gameData.TownPoolTownIds);
+            var townNames = poolIds.Count == 0
+                ? new Dictionary<int, string>()
+                : await DbContext.Towns
+                    .AsNoTracking()
+                    .Where(t => poolIds.Contains(t.Id))
+                    .ToDictionaryAsync(t => t.Id, t => t.Name);
+
+            var ratingRows = await DbContext.RatingHistory
+                .AsNoTracking()
+                .Where(h => h.GameId == GameId)
+                .Select(h => new { h.LeagueMembershipId, h.PreviousRating, h.NewRating, h.CalculatedAt })
+                .ToListAsync();
+
             game = new GameView
             {
                 Id = gameData.Id,
@@ -167,6 +206,13 @@ else
                 MapName = gameData.MapName,
                 Status = gameData.Status,
                 Notes = gameData.Notes,
+                TownPool = poolIds.Where(townNames.ContainsKey).Select(id => townNames[id]).ToList(),
+                RatingChanges = ratingRows
+                    .GroupBy(h => h.LeagueMembershipId)
+                    .ToDictionary(
+                        g => g.Key,
+                        g => g.OrderByDescending(h => h.CalculatedAt).First().NewRating
+                            - g.OrderByDescending(h => h.CalculatedAt).First().PreviousRating),
                 Participants = gameData.Participants ?? new List<GameParticipant>(),
                 Winner = gameData.Winner
             };
@@ -231,6 +277,8 @@ else
         public string MapName { get; set; } = string.Empty;
         public GameStatus Status { get; set; }
         public string? Notes { get; set; }
+        public List<string> TownPool { get; set; } = new();
+        public Dictionary<Guid, double> RatingChanges { get; set; } = new();
         public ICollection<GameParticipant> Participants { get; set; } = new List<GameParticipant>();
         public LeagueMembership? Winner { get; set; }
     }

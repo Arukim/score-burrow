@@ -20,6 +20,9 @@ public class GameConfiguration : IEntityTypeConfiguration<Game>
         builder.Property(g => g.Notes)
             .HasMaxLength(2000);
 
+        builder.Property(g => g.TownPoolTownIds)
+            .HasMaxLength(100);
+
         builder.Property(g => g.CreatedBy)
             .IsRequired()
             .HasMaxLength(450);

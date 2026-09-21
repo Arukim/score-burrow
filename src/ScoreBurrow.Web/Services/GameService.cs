@@ -36,6 +36,35 @@ public class GameService : IGameService
             throw new UnauthorizedAccessException("User does not have permission to create games in this league.");
         }
 
+        ArgumentNullException.ThrowIfNull(request);
+
+        var participants = request.Participants ?? new List<ParticipantRequest>();
+        var membershipIds = participants.Select(p => p.LeagueMembershipId).Distinct().ToList();
+        var membershipsById = await _context.LeagueMemberships
+            .Where(m => membershipIds.Contains(m.Id) && m.LeagueId == leagueId)
+            .ToDictionaryAsync(m => m.Id);
+
+        var townIds = participants.Select(p => p.TownId).Distinct().ToList();
+        var existingTownIds = (await _context.Towns
+            .Where(t => townIds.Contains(t.Id))
+            .Select(t => t.Id)
+            .ToListAsync())
+            .ToHashSet();
+
+        var heroIds = participants
+            .Select(p => CreateGameValidator.NormalizeHeroId(p.HeroId))
+            .Where(id => id.HasValue)
+            .Select(id => id!.Value)
+            .Distinct()
+            .ToList();
+        var heroesById = heroIds.Count == 0
+            ? new Dictionary<int, Hero>()
+            : await _context.Heroes
+                .Where(h => heroIds.Contains(h.Id))
+                .ToDictionaryAsync(h => h.Id);
+
+        CreateGameValidator.Validate(participants, membershipsById, existingTownIds, heroesById);
+
         // Create game
         var game = new Game
         {
@@ -51,16 +80,9 @@ public class GameService : IGameService
         _context.Games.Add(game);
 
         // Create participants with rating snapshots
-        foreach (var participantRequest in request.Participants)
+        foreach (var participantRequest in participants)
         {
-            // Get current rating from LeagueMembership
-            var membership = await _context.LeagueMemberships
-                .FirstOrDefaultAsync(m => m.Id == participantRequest.LeagueMembershipId);
-
-            if (membership == null)
-            {
-                throw new ArgumentException($"League membership {participantRequest.LeagueMembershipId} not found.");
-            }
+            var membership = membershipsById[participantRequest.LeagueMembershipId];
 
             var participant = new GameParticipant
             {
@@ -68,7 +90,7 @@ public class GameService : IGameService
                 GameId = game.Id,
                 LeagueMembershipId = participantRequest.LeagueMembershipId,
                 TownId = participantRequest.TownId,
-                HeroId = participantRequest.HeroId,
+                HeroId = CreateGameValidator.NormalizeHeroId(participantRequest.HeroId),
                 PlayerColor = participantRequest.PlayerColor,
                 Position = participantRequest.Position,
                 GoldTrade = participantRequest.GoldTrade,

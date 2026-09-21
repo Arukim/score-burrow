@@ -36,6 +36,7 @@ public class GameParticipantConfiguration : IEntityTypeConfiguration<GamePartici
         builder.HasIndex(gp => gp.GameId);
         builder.HasIndex(gp => gp.LeagueMembershipId);
         builder.HasIndex(gp => new { gp.GameId, gp.PlayerColor }).IsUnique();
+        builder.HasIndex(gp => new { gp.GameId, gp.LeagueMembershipId }).IsUnique();
 
         builder.HasOne(gp => gp.Game)
             .WithMany(g => g.Participants)

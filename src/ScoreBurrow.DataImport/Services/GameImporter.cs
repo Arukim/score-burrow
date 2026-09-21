@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using ScoreBurrow.Data;
 using ScoreBurrow.Data.Entities;
 using ScoreBurrow.Data.Enums;
+using ScoreBurrow.Data.Statistics;
 using ScoreBurrow.DataImport.Models;
 
 namespace ScoreBurrow.DataImport.Services;
@@ -14,6 +15,7 @@ public class GameImporter
     private readonly LeagueResolver _leagueResolver;
     private readonly PlayerResolver _playerResolver;
     private readonly RatingCalculator _ratingCalculator;
+    private readonly PlayerStatisticsProjector _playerStatisticsProjector;
 
     public GameImporter(ScoreBurrowDbContext dbContext)
     {
@@ -23,6 +25,7 @@ public class GameImporter
         _leagueResolver = new LeagueResolver(dbContext);
         _playerResolver = new PlayerResolver(dbContext);
         _ratingCalculator = new RatingCalculator();
+        _playerStatisticsProjector = new PlayerStatisticsProjector(dbContext);
     }
 
     public async Task<ImportResult> ImportAsync(ImportOptions options)
@@ -334,78 +337,15 @@ public class GameImporter
 
     private async Task CalculatePlayerStatisticsAsync(Guid leagueId)
     {
-        // Get all memberships for this league
-        var memberships = await _dbContext.LeagueMemberships
-            .Where(lm => lm.LeagueId == leagueId)
-            .ToListAsync();
+        var membershipCount = await _dbContext.LeagueMemberships
+            .CountAsync(lm => lm.LeagueId == leagueId);
 
-        int updatedCount = 0;
-
-        foreach (var membership in memberships)
-        {
-            // Get all game participants for this player
-            var participations = await _dbContext.GameParticipants
-                .Include(gp => gp.Game)
-                .Where(gp => gp.LeagueMembershipId == membership.Id 
-                    && gp.Game.LeagueId == leagueId
-                    && gp.Game.Status == GameStatus.Completed)
-                .ToListAsync();
-
-            if (participations.Count == 0)
-                continue;
-
-            // Calculate statistics
-            var gamesPlayed = participations.Count;
-            var gamesWon = participations.Count(p => p.IsWinner);
-            var technicalLosses = participations.Count(p => p.IsTechnicalLoss);
-            var winRate = gamesPlayed > 0 ? (decimal)gamesWon * 100 / gamesPlayed : 0;
-            var averagePosition = participations.Average(p => p.Position);
-
-            // Find favorite town (most played)
-            var favoriteTownId = participations
-                .GroupBy(p => p.TownId)
-                .OrderByDescending(g => g.Count())
-                .Select(g => g.Key)
-                .FirstOrDefault();
-
-            // Find favorite hero (most played, if hero data exists)
-            var favoriteHeroId = participations
-                .Where(p => p.HeroId.HasValue)
-                .GroupBy(p => p.HeroId)
-                .OrderByDescending(g => g.Count())
-                .Select(g => g.Key)
-                .FirstOrDefault();
-
-            // Create or update statistics
-            var stats = await _dbContext.PlayerStatistics
-                .FirstOrDefaultAsync(s => s.LeagueMembershipId == membership.Id);
-
-            if (stats == null)
-            {
-                stats = new PlayerStatistics
-                {
-                    Id = Guid.NewGuid(),
-                    LeagueMembershipId = membership.Id
-                };
-                _dbContext.PlayerStatistics.Add(stats);
-            }
-
-            stats.GamesPlayed = gamesPlayed;
-            stats.GamesWon = gamesWon;
-            stats.TechnicalLosses = technicalLosses;
-            stats.WinRate = winRate;
-            stats.AveragePosition = (decimal)averagePosition;
-            stats.FavoriteTownId = favoriteTownId;
-            stats.FavoriteHeroId = favoriteHeroId;
-            stats.LastUpdated = DateTime.UtcNow;
-
-            updatedCount++;
-        }
+        var updatedCount = await _playerStatisticsProjector.RecalculateLeagueAsync(leagueId);
+        await _dbContext.SaveChangesAsync();
 
         if (updatedCount > 0)
         {
-            await _dbContext.SaveChangesAsync();
-            Console.WriteLine($"Updated statistics for {updatedCount}/{memberships.Count} players");
+            Console.WriteLine($"Updated statistics for {updatedCount}/{membershipCount} players");
         }
         else
         {

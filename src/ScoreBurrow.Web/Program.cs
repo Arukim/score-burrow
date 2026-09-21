@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using ScoreBurrow.Data;
 using ScoreBurrow.Data.Entities;
+using ScoreBurrow.Data.Statistics;
 using ScoreBurrow.Rating.Services;
 using System.Globalization;
 
@@ -28,6 +29,9 @@ builder.Services.AddServerSideBlazor();
 
 // Register rating service
 builder.Services.AddScoped<IRatingService, RatingService>();
+
+// Register player statistics projector used by complete, tech-loss, and Recalculate
+builder.Services.AddScoped<PlayerStatisticsProjector>();
 
 // Register league service
 builder.Services.AddScoped<ScoreBurrow.Web.Services.ILeagueService, ScoreBurrow.Web.Services.LeagueService>();

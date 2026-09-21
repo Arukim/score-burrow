@@ -4,6 +4,7 @@ using Microsoft.Extensions.Caching.Memory;
 using ScoreBurrow.Data;
 using ScoreBurrow.Data.Entities;
 using ScoreBurrow.Data.Enums;
+using ScoreBurrow.Data.Statistics;
 
 namespace ScoreBurrow.Web.Services;
 
@@ -13,17 +14,20 @@ public class LeagueService : ILeagueService
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly IMemoryCache _memoryCache;
     private readonly ILogger<LeagueService> _logger;
+    private readonly PlayerStatisticsProjector _playerStatisticsProjector;
 
     public LeagueService(
         ScoreBurrowDbContext dbContext,
         UserManager<ApplicationUser> userManager,
         IMemoryCache memoryCache,
-        ILogger<LeagueService> logger)
+        ILogger<LeagueService> logger,
+        PlayerStatisticsProjector playerStatisticsProjector)
     {
         _dbContext = dbContext;
         _userManager = userManager;
         _memoryCache = memoryCache;
         _logger = logger;
+        _playerStatisticsProjector = playerStatisticsProjector;
     }
 
     public async Task<Guid> CreateLeagueAsync(string userId, string name, string? description)
@@ -555,85 +559,16 @@ public class LeagueService : ILeagueService
 
         _logger.LogInformation("Starting statistics recalculation for league {LeagueId} by user {UserId}", leagueId, userId);
 
-        // Get all memberships for this league
-        var memberships = await _dbContext.LeagueMemberships
-            .Where(lm => lm.LeagueId == leagueId)
-            .ToListAsync();
+        var membershipCount = await _dbContext.LeagueMemberships
+            .CountAsync(lm => lm.LeagueId == leagueId);
 
-        // Delete existing statistics
-        var membershipIds = memberships.Select(m => m.Id).ToList();
-        var existingStats = await _dbContext.PlayerStatistics
-            .Where(s => membershipIds.Contains(s.LeagueMembershipId))
-            .ToListAsync();
-        
-        if (existingStats.Any())
-        {
-            _dbContext.PlayerStatistics.RemoveRange(existingStats);
-            await _dbContext.SaveChangesAsync();
-            _logger.LogInformation("Deleted {Count} existing statistics records", existingStats.Count);
-        }
+        var updatedCount = await _playerStatisticsProjector.RecalculateLeagueAsync(leagueId);
 
-        int updatedCount = 0;
-
-        // Recalculate statistics for each member
-        foreach (var membership in memberships)
-        {
-            // Get all game participants for this player in completed games
-            var participations = await _dbContext.GameParticipants
-                .Include(gp => gp.Game)
-                .Where(gp => gp.LeagueMembershipId == membership.Id 
-                    && gp.Game.LeagueId == leagueId
-                    && gp.Game.Status == GameStatus.Completed)
-                .ToListAsync();
-
-            if (participations.Count == 0)
-                continue;
-
-            // Calculate statistics
-            var gamesPlayed = participations.Count;
-            var gamesWon = participations.Count(p => p.IsWinner);
-            var technicalLosses = participations.Count(p => p.IsTechnicalLoss);
-            var winRate = gamesPlayed > 0 ? (decimal)gamesWon * 100 / gamesPlayed : 0;
-            var averagePosition = participations.Average(p => p.Position);
-
-            // Find favorite town (most played)
-            var favoriteTownId = participations
-                .GroupBy(p => p.TownId)
-                .OrderByDescending(g => g.Count())
-                .Select(g => g.Key)
-                .FirstOrDefault();
-
-            // Find favorite hero (most played, if hero data exists)
-            var favoriteHeroId = participations
-                .Where(p => p.HeroId.HasValue)
-                .GroupBy(p => p.HeroId)
-                .OrderByDescending(g => g.Count())
-                .Select(g => g.Key)
-                .FirstOrDefault();
-
-            // Create new statistics
-            var stats = new PlayerStatistics
-            {
-                Id = Guid.NewGuid(),
-                LeagueMembershipId = membership.Id,
-                GamesPlayed = gamesPlayed,
-                GamesWon = gamesWon,
-                TechnicalLosses = technicalLosses,
-                WinRate = winRate,
-                AveragePosition = (decimal)averagePosition,
-                FavoriteTownId = favoriteTownId,
-                FavoriteHeroId = favoriteHeroId,
-                LastUpdated = DateTime.UtcNow
-            };
-
-            _dbContext.PlayerStatistics.Add(stats);
-            updatedCount++;
-        }
+        await _dbContext.SaveChangesAsync();
 
         if (updatedCount > 0)
         {
-            await _dbContext.SaveChangesAsync();
-            _logger.LogInformation("Recalculated statistics for {Count}/{Total} players in league {LeagueId}", updatedCount, memberships.Count, leagueId);
+            _logger.LogInformation("Recalculated statistics for {Count}/{Total} players in league {LeagueId}", updatedCount, membershipCount, leagueId);
         }
 
         InvalidateLeagueCache(leagueId);

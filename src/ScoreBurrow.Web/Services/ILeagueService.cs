@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Primitives;
 using ScoreBurrow.Data.Enums;
 
 namespace ScoreBurrow.Web.Services;
@@ -81,7 +82,13 @@ public interface ILeagueService
     Task<bool> RecalculateStatisticsAsync(Guid leagueId, string userId);
 
     /// <summary>
-    /// Invalidate all cached data for a league (called after game completion, etc.)
+    /// Invalidate all cached data for a league (called after create, complete, technical loss, cancel, etc.)
     /// </summary>
-    void InvalidateLeagueCache(Guid leagueId, string? userId = null);
+    void InvalidateLeagueCache(Guid leagueId, string? userId = null, Guid? gameId = null);
+
+    /// <summary>
+    /// Token that expires when <see cref="InvalidateLeagueCache"/> runs for this league.
+    /// Attach to IMemoryCache entries so every viewer's cache is dropped, not only the acting user's key.
+    /// </summary>
+    IChangeToken GetLeagueCacheExpirationToken(Guid leagueId);
 }

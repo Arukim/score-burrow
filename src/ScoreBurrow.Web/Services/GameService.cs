@@ -87,6 +87,8 @@ public class GameService : IGameService
 
         await _context.SaveChangesAsync();
 
+        _leagueService.InvalidateLeagueCache(leagueId, userId, game.Id);
+
         return game.Id;
     }
 
@@ -182,7 +184,7 @@ public class GameService : IGameService
         await SaveCompletedGameStatisticsAsync(game);
 
         // Invalidate league cache to refresh statistics
-        _leagueService.InvalidateLeagueCache(game.LeagueId, userId);
+        _leagueService.InvalidateLeagueCache(game.LeagueId, userId, game.Id);
 
         return true;
     }
@@ -322,7 +324,7 @@ public class GameService : IGameService
 
         await SaveCompletedGameStatisticsAsync(game);
 
-        _leagueService.InvalidateLeagueCache(game.LeagueId, userId);
+        _leagueService.InvalidateLeagueCache(game.LeagueId, userId, game.Id);
 
         return newGame.Id;
     }
@@ -356,6 +358,8 @@ public class GameService : IGameService
         game.ModifiedOn = DateTime.UtcNow;
 
         await _context.SaveChangesAsync();
+
+        _leagueService.InvalidateLeagueCache(game.LeagueId, userId, game.Id);
 
         return true;
     }

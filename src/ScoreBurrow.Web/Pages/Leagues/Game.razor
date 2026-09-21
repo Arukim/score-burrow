@@ -7,9 +7,11 @@
 @using ScoreBurrow.Data
 @using ScoreBurrow.Data.Entities
 @using ScoreBurrow.Data.Enums
+@using ScoreBurrow.Web.Services
 @inject ScoreBurrowDbContext DbContext
 @inject IMemoryCache MemoryCache
 @inject NavigationManager NavigationManager
+@inject ILeagueService LeagueService
 
 <h1>Game Details</h1>
 
@@ -171,7 +173,8 @@ else
 
             // Cache for 15 minutes since game data is more stable
             var cacheOptions = new MemoryCacheEntryOptions()
-                .SetSlidingExpiration(TimeSpan.FromMinutes(15));
+                .SetSlidingExpiration(TimeSpan.FromMinutes(15))
+                .AddExpirationToken(LeagueService.GetLeagueCacheExpirationToken(LeagueId));
 
             MemoryCache.Set(cacheKey, game, cacheOptions);
 

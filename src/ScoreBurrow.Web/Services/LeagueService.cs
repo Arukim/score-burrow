@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Primitives;
 using ScoreBurrow.Data;
 using ScoreBurrow.Data.Entities;
 using ScoreBurrow.Data.Enums;
@@ -576,35 +577,55 @@ public class LeagueService : ILeagueService
         return true;
     }
 
-    public void InvalidateLeagueCache(Guid leagueId, string? userId = null)
+    public void InvalidateLeagueCache(Guid leagueId, string? userId = null, Guid? gameId = null)
     {
-        // Clear league cache for all users by clearing all matching keys
-        // Since we can't enumerate MemoryCache keys, we rely on cache expiration
-        // For now, we just clear the most common patterns
-        
-        // Clear generic league cache
+        // Cancel the shared token so every cache entry that attached
+        // GetLeagueCacheExpirationToken(leagueId) is dropped immediately,
+        // including other users' league_{id}_{userId} recent-games entries.
+        var tokenKey = LeagueCacheTokenKey(leagueId);
+        if (_memoryCache.TryGetValue(tokenKey, out CancellationTokenSource? cts) && cts != null)
+        {
+            cts.Cancel();
+            _memoryCache.Remove(tokenKey);
+        }
+
         _memoryCache.Remove($"league_{leagueId}");
         _memoryCache.Remove($"league_{leagueId}_anonymous");
         if (!string.IsNullOrEmpty(userId))
         {
             _memoryCache.Remove($"league_{leagueId}_{userId}");
         }
-        
-        // Clear leagues list cache (all pages)
+
         for (int i = 1; i <= 100; i++)
         {
             _memoryCache.Remove($"leagues_page_{i}");
+            _memoryCache.Remove($"leagues_page_{i}_anonymous");
             if (!string.IsNullOrEmpty(userId))
             {
                 _memoryCache.Remove($"leagues_page_{i}_{userId}");
             }
         }
-        
-        // Clear league statistics cache
+
         _memoryCache.Remove($"league_town_stats_{leagueId}_365");
         _memoryCache.Remove($"league_color_stats_{leagueId}_365_10");
-        
-        // Note: User-specific caches (including player performance) will eventually expire after 1 hour
-        // To force immediate refresh, users can reload the page after cache expiration
+        _memoryCache.Remove("home_leagues_top10");
+
+        if (gameId.HasValue)
+        {
+            _memoryCache.Remove($"game_{gameId.Value}");
+        }
     }
+
+    public IChangeToken GetLeagueCacheExpirationToken(Guid leagueId)
+    {
+        var cts = _memoryCache.GetOrCreate(LeagueCacheTokenKey(leagueId), entry =>
+        {
+            entry.Priority = CacheItemPriority.NeverRemove;
+            return new CancellationTokenSource();
+        })!;
+
+        return new CancellationChangeToken(cts.Token);
+    }
+
+    private static string LeagueCacheTokenKey(Guid leagueId) => $"league_cache_token_{leagueId}";
 }

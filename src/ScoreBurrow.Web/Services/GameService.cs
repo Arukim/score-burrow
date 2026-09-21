@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using ScoreBurrow.Data;
 using ScoreBurrow.Data.Entities;
 using ScoreBurrow.Data.Enums;
+using ScoreBurrow.Data.Statistics;
 using ScoreBurrow.Rating.Models;
 using ScoreBurrow.Rating.Services;
 using ScoreBurrow.Web.Models;
@@ -13,15 +14,18 @@ public class GameService : IGameService
     private readonly ScoreBurrowDbContext _context;
     private readonly ILeagueService _leagueService;
     private readonly IRatingService _ratingService;
+    private readonly PlayerStatisticsProjector _playerStatisticsProjector;
 
     public GameService(
         ScoreBurrowDbContext context,
         ILeagueService leagueService,
-        IRatingService ratingService)
+        IRatingService ratingService,
+        PlayerStatisticsProjector playerStatisticsProjector)
     {
         _context = context;
         _leagueService = leagueService;
         _ratingService = ratingService;
+        _playerStatisticsProjector = playerStatisticsProjector;
     }
 
     public async Task<Guid> CreateGameAsync(Guid leagueId, string userId, CreateGameRequest request)
@@ -153,6 +157,7 @@ public class GameService : IGameService
             membership.Glicko2Rating = update.NewRating.Rating;
             membership.Glicko2RatingDeviation = update.NewRating.RatingDeviation;
             membership.Glicko2Volatility = update.NewRating.Volatility;
+            membership.LastRatingUpdate = DateTime.UtcNow;
 
             // Create rating history
             var history = new RatingHistory
@@ -172,42 +177,9 @@ public class GameService : IGameService
             };
 
             _context.RatingHistory.Add(history);
-
-            // Update statistics
-            var stats = await _context.PlayerStatistics
-                .FirstOrDefaultAsync(s => s.LeagueMembershipId == participant.LeagueMembershipId);
-
-            if (stats == null)
-            {
-                stats = new PlayerStatistics
-                {
-                    Id = Guid.NewGuid(),
-                    LeagueMembershipId = participant.LeagueMembershipId
-                };
-                _context.PlayerStatistics.Add(stats);
-            }
-
-            stats.GamesPlayed++;
-            if (participant.LeagueMembershipId == winnerId)
-            {
-                stats.GamesWon++;
-            }
-
-            // Update favorite town (town with most games played)
-            var townStats = await _context.GameParticipants
-                .Where(gp => gp.LeagueMembershipId == participant.LeagueMembershipId)
-                .GroupBy(gp => gp.TownId)
-                .Select(g => new { TownId = g.Key, Count = g.Count() })
-                .OrderByDescending(x => x.Count)
-                .FirstOrDefaultAsync();
-
-            if (townStats != null)
-            {
-                stats.FavoriteTownId = townStats.TownId;
-            }
         }
 
-        await _context.SaveChangesAsync();
+        await SaveCompletedGameStatisticsAsync(game);
 
         // Invalidate league cache to refresh statistics
         _leagueService.InvalidateLeagueCache(game.LeagueId, userId);
@@ -298,33 +270,6 @@ public class GameService : IGameService
         game.ModifiedBy = userId;
         game.ModifiedOn = DateTime.UtcNow;
 
-        foreach (var participant in game.Participants)
-        {
-            var stats = await _context.PlayerStatistics
-                .FirstOrDefaultAsync(s => s.LeagueMembershipId == participant.LeagueMembershipId);
-
-            if (stats == null)
-            {
-                stats = new PlayerStatistics
-                {
-                    Id = Guid.NewGuid(),
-                    LeagueMembershipId = participant.LeagueMembershipId
-                };
-                _context.PlayerStatistics.Add(stats);
-            }
-
-            stats.GamesPlayed++;
-            if (participant.LeagueMembershipId == culpritMembershipId)
-            {
-                stats.TechnicalLosses++;
-            }
-
-            stats.WinRate = stats.GamesPlayed > 0
-                ? (decimal)stats.GamesWon * 100 / stats.GamesPlayed
-                : 0;
-            stats.LastUpdated = DateTime.UtcNow;
-        }
-
         // Create new game with same settings
         var newGame = new Game
         {
@@ -375,7 +320,7 @@ public class GameService : IGameService
             _context.GameParticipants.Add(newParticipant);
         }
 
-        await _context.SaveChangesAsync();
+        await SaveCompletedGameStatisticsAsync(game);
 
         _leagueService.InvalidateLeagueCache(game.LeagueId, userId);
 
@@ -463,5 +408,27 @@ public class GameService : IGameService
         };
 
         return dto;
+    }
+
+    private async Task SaveCompletedGameStatisticsAsync(Game game)
+    {
+        var membershipIds = game.Participants
+            .Select(p => p.LeagueMembershipId)
+            .Distinct()
+            .ToList();
+
+        await using var transaction = await _context.Database.BeginTransactionAsync();
+        try
+        {
+            await _context.SaveChangesAsync();
+            await _playerStatisticsProjector.RecalculateMembershipsAsync(game.LeagueId, membershipIds);
+            await _context.SaveChangesAsync();
+            await transaction.CommitAsync();
+        }
+        catch
+        {
+            await transaction.RollbackAsync();
+            throw;
+        }
     }
 }

@@ -164,6 +164,7 @@ dotnet test
   - Player resolution and league membership creation
   - Dry-run mode for validation
 - ✅ **Responsive UI**: Blazor Server with Bootstrap styling
+- ✅ **Weekend keep-alive (F1)**: GitHub Action pings `/health` so the Free App Service stays loaded Saturday–Sunday from 4:50pm Sydney (10 hours). `/health/ready` wakes SQL on the first tick. Not 24/7 — Always On is unavailable on F1.
 
 ### Statistics Features
 
@@ -309,6 +310,7 @@ See [Infrastructure README](infrastructure/README.md) for detailed deployment do
 - [x] Color distribution analysis by game size
 - [x] Town pool selection in game wizard
 - [x] Added Bulwark town and 17 heroes (Chieftain and Elder classes)
+- [x] Weekend F1 keep-alive (Sat–Sun 16:50 AEST, 10 hours)
 
 ### In Progress
 - [ ] Game editing and management UI

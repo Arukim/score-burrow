@@ -107,6 +107,23 @@ app.UseRouting();
 app.UseAuthentication();
 app.UseAuthorization();
 
+// Cheap keep-alive targets for F1: do not open a Blazor circuit.
+// /health keeps the worker loaded; /health/ready also resumes SQL (costs free vCore seconds).
+app.MapGet("/health", () => Results.Text("ok", "text/plain"));
+app.MapGet("/health/ready", async (ScoreBurrowDbContext db, CancellationToken cancellationToken) =>
+{
+    try
+    {
+        return await db.Database.CanConnectAsync(cancellationToken)
+            ? Results.Text("ready", "text/plain")
+            : Results.Text("database unavailable", "text/plain", statusCode: 503);
+    }
+    catch (Exception)
+    {
+        return Results.Text("database unavailable", "text/plain", statusCode: 503);
+    }
+});
+
 app.MapBlazorHub();
 app.MapRazorPages();
 app.MapFallbackToPage("/_Host");

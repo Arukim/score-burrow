@@ -287,6 +287,24 @@ infrastructure/
     └── sqlServerSecurity.bicep    # (Legacy - for existing resources)
 ```
 
+## Keep-alive on Free (F1)
+
+Always On is **not** available on F1. A 24/7 ping will exhaust the **60 CPU minutes/day** quota (HTTP 403) and, if it hits SQL, the **100,000 vCore-seconds/month** free database offer.
+
+The repo uses a **single weekend schedule** (GitHub Action `.github/workflows/keep-alive.yml`):
+
+- **When:** Saturday and Sunday every 10 minutes, **16:00–02:50 AEST** (covers 4:50pm–2:50am Sydney; `*/10 6-16 * * 6,0` UTC)
+- During AEDT that same UTC window is 17:00–03:50 local
+- **App:** `GET /health` (no Blazor circuit, no SQL)
+- **SQL:** `GET /health/ready` once at 16:50 AEST so auto-resume happens before players arrive
+- **Manual:** Actions → Keep alive → Run workflow (optionally warm the database)
+
+Set repository variable `APP_URL` if the site is not `https://score-burrow-app-dev.azurewebsites.net`.
+
+Do **not** point an uptime monitor at `/` — that loads Blazor Server and SQL on every tick.
+
+Linux F1 still allows only **5 WebSocket** connections (one per open Blazor tab). Keep-alive does not raise that cap; B1 does.
+
 ## Support
 
 For issues or questions:

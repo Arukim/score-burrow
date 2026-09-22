@@ -9,10 +9,11 @@ This project provides a complete Glicko-2 rating calculation system adapted for 
 ## Features
 
 - **Glicko-2 Rating System**: Industry-standard rating algorithm with volatility tracking
-- **Multi-Player Adaptation**: Winner plays N-1 virtual matches against each loser
+- **Multi-Player Adaptation**: Winner plays N-1 wins; each loser plays a loss vs the winner and draws vs other losers
 - **Technical Loss Penalty**: Players who cause technical losses play against themselves and lose
 - **Rating History**: Complete audit trail of all rating changes
 - **Immutable Models**: Thread-safe rating snapshots and updates
+- **Rating Replay**: League admins can rebuild ratings from completed games after formula changes
 
 ## Architecture
 
@@ -43,15 +44,16 @@ ScoreBurrow.Rating/
 
 ### Multi-Player Game Logic
 
-For a normal N-player game with 1 winner:
+For a normal N-player game with 1 winner, every participant plays exactly N-1 virtual matches:
 
 1. **Winner's Perspective**: Plays N-1 matches, wins all of them
-2. **Loser's Perspective**: Plays 1 match against the winner, loses it
+2. **Loser's Perspective**: Plays 1 loss against the winner, plus draws (score 0.5) against every other loser
 
-This approach ensures:
-- Winners gain more rating for beating multiple opponents
-- Each loser's rating change reflects losing to the winner only
-- The system remains mathematically sound
+This equalizes information (match count) across participants and removes the structural rating sink of the previous "losers play once" adaptation. When all players start with the same rating and RD, rating changes sum to approximately zero (ordinary Glicko-2 residual drift remains when RDs differ).
+
+Caveat: draws between losers transfer rating among non-winners. A much weaker loser can gain rating points on a loss when the other loser is much stronger, because the weak player outperformed the expected draw score against that opponent. The single-winner outcome is still preserved (only the winner records wins).
+
+2-player games are unchanged (identical to plain 1v1 Glicko-2).
 
 ### Technical Loss Handling
 
@@ -181,7 +183,7 @@ While there are Glicko-2 implementations available, this custom implementation p
 ## Future Enhancements
 
 Potential improvements:
-- [ ] Rating recalculation tool for historical games
+- [x] Rating recalculation tool for historical games
 - [ ] Confidence interval calculations
 - [ ] Win probability predictions
 - [ ] Rating decay for inactive players

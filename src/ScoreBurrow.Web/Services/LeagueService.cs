@@ -16,19 +16,22 @@ public class LeagueService : ILeagueService
     private readonly IMemoryCache _memoryCache;
     private readonly ILogger<LeagueService> _logger;
     private readonly PlayerStatisticsProjector _playerStatisticsProjector;
+    private readonly RatingReplayService _ratingReplayService;
 
     public LeagueService(
         ScoreBurrowDbContext dbContext,
         UserManager<ApplicationUser> userManager,
         IMemoryCache memoryCache,
         ILogger<LeagueService> logger,
-        PlayerStatisticsProjector playerStatisticsProjector)
+        PlayerStatisticsProjector playerStatisticsProjector,
+        RatingReplayService ratingReplayService)
     {
         _dbContext = dbContext;
         _userManager = userManager;
         _memoryCache = memoryCache;
         _logger = logger;
         _playerStatisticsProjector = playerStatisticsProjector;
+        _ratingReplayService = ratingReplayService;
     }
 
     public async Task<Guid> CreateLeagueAsync(string userId, string name, string? description)
@@ -570,6 +573,45 @@ public class LeagueService : ILeagueService
         if (updatedCount > 0)
         {
             _logger.LogInformation("Recalculated statistics for {Count}/{Total} players in league {LeagueId}", updatedCount, membershipCount, leagueId);
+        }
+
+        InvalidateLeagueCache(leagueId);
+
+        return true;
+    }
+
+    public async Task<bool> RecalculateRatingsAsync(Guid leagueId, string userId)
+    {
+        if (!await IsAdminOrOwnerAsync(userId, leagueId))
+        {
+            _logger.LogWarning("User {UserId} attempted to recalculate ratings for league {LeagueId} without admin permission", userId, leagueId);
+            return false;
+        }
+
+        var league = await _dbContext.Leagues.FindAsync(leagueId);
+        if (league == null)
+        {
+            _logger.LogWarning("League {LeagueId} not found", leagueId);
+            return false;
+        }
+
+        _logger.LogInformation("Starting rating recalculation for league {LeagueId} by user {UserId}", leagueId, userId);
+
+        await using var transaction = await _dbContext.Database.BeginTransactionAsync();
+        try
+        {
+            var gamesUpdated = await _ratingReplayService.RecalculateLeagueRatingsAsync(leagueId, userId);
+            await transaction.CommitAsync();
+
+            _logger.LogInformation(
+                "Recalculated ratings for {GameCount} completed games in league {LeagueId}",
+                gamesUpdated,
+                leagueId);
+        }
+        catch
+        {
+            await transaction.RollbackAsync();
+            throw;
         }
 
         InvalidateLeagueCache(leagueId);

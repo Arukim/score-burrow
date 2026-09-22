@@ -60,5 +60,9 @@ public class LeagueCacheInvalidationTests
             userManager: null!,
             cache,
             NullLogger<LeagueService>.Instance,
-            new PlayerStatisticsProjector(context));
+            new PlayerStatisticsProjector(context),
+            new RatingReplayService(
+                context,
+                new ScoreBurrow.Rating.Services.RatingService(),
+                NullLogger<RatingReplayService>.Instance));
 }

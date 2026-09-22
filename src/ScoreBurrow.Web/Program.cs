@@ -33,6 +33,9 @@ builder.Services.AddScoped<IRatingService, RatingService>();
 // Register player statistics projector used by complete, tech-loss, and Recalculate
 builder.Services.AddScoped<PlayerStatisticsProjector>();
 
+// Register rating replay used by admin Recalculate Ratings
+builder.Services.AddScoped<ScoreBurrow.Web.Services.RatingReplayService>();
+
 // Register league service
 builder.Services.AddScoped<ScoreBurrow.Web.Services.ILeagueService, ScoreBurrow.Web.Services.LeagueService>();
 

@@ -8,7 +8,8 @@ using ScoreBurrow.Rating.Models;
 public interface IRatingService
 {
     /// <summary>
-    /// Calculates rating updates for a multi-player game (N players, 1 winner)
+    /// Calculates rating updates for a multi-player game (N players, 1 winner).
+    /// Winner plays N-1 wins; each loser plays a loss vs the winner and draws vs other losers.
     /// </summary>
     /// <param name="participants">List of participants with their current ratings</param>
     /// <param name="winnerId">ID of the winning participant</param>

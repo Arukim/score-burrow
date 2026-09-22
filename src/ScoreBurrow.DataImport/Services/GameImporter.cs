@@ -154,7 +154,7 @@ public class GameImporter
                     TownId = town.Id,
                     HeroId = null, // No hero data in historical CSV
                     PlayerColor = playerColor,
-                    Position = isWinner ? 1 : 2, // Simple: winner = 1, others = 2
+                    Position = (int)playerColor + 1,
                     IsWinner = isWinner,
                     IsTechnicalLoss = isTechnicalLoss,
                     GoldTrade = participant.StartMoney

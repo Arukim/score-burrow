@@ -17,9 +17,11 @@ public class RatingService : IRatingService
     }
 
     /// <summary>
-    /// Calculates rating updates for a multi-player game where one player wins
-    /// Winner plays N-1 matches (against each loser)
-    /// Each loser plays 1 match (against winner)
+    /// Calculates rating updates for a multi-player game where one player wins.
+    /// Winner plays N-1 matches (against each loser, all wins).
+    /// Each loser plays N-1 matches: loss vs winner, plus draws vs every other loser.
+    /// This equalizes match count and removes the structural rating sink of the
+    /// previous "losers play once" adaptation.
     /// </summary>
     public Dictionary<Guid, RatingUpdate> CalculateMultiPlayerGameRatings(
         Dictionary<Guid, RatingSnapshot> participants,
@@ -47,13 +49,24 @@ public class RatingService : IRatingService
         }
         results[winnerId] = _calculator.CalculateNewRating(winnerRating, winnerMatchups);
 
-        // Each loser plays 1 match against the winner (all losses)
+        // Each loser plays N-1 matches: loss vs winner + draw vs every other loser
         foreach (var loser in losers)
         {
             var loserMatchups = new List<GameMatchup>
             {
                 GameMatchup.Loss(winnerRating)
             };
+
+            foreach (var otherLoser in losers)
+            {
+                if (otherLoser.Key == loser.Key)
+                {
+                    continue;
+                }
+
+                loserMatchups.Add(GameMatchup.Draw(otherLoser.Value));
+            }
+
             results[loser.Key] = _calculator.CalculateNewRating(loser.Value, loserMatchups);
         }
 

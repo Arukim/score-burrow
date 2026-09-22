@@ -138,9 +138,6 @@ else
                                 $"{(decimal)membership.Statistics.GamesWon * 100 / membership.Statistics.GamesPlayed:F1}%" :
                                 "N/A")
                         </div>
-                        <div class="mb-2">
-                            <strong>Average Position:</strong> @membership.Statistics.AveragePosition.ToString("F1")
-                        </div>
                         @if (membership.Statistics.FavoriteTownId.HasValue)
                         {
                             <div class="mb-2">
@@ -154,7 +151,7 @@ else
                             </div>
                         }
                         <div class="mb-2">
-                            <strong>Data Updated:</strong> @membership.Statistics.LastUpdated.ToString("MMM dd, yyyy HH:mm")
+                            <strong>Statistics recalculated:</strong> @membership.Statistics.LastUpdated.ToString("MMM dd, yyyy HH:mm")
                         </div>
                     }
                     else
@@ -314,7 +311,7 @@ else
                             <tr>
                                 <th>Date</th>
                                 <th>Map</th>
-                                <th>Position</th>
+                                <th>Color</th>
                                 <th>Town & Hero</th>
                                 <th>Status</th>
                                 <th></th>
@@ -327,7 +324,7 @@ else
                                 <tr>
                                     <td>@game.StartTime.ToString("MMM dd, yyyy HH:mm")</td>
                                     <td>@game.MapName</td>
-                                    <td>@participant.Position@(GetOrdinalSuffix(participant.Position))</td>
+                                    <td><PlayerColorBadge PlayerColor="@participant.PlayerColor" /></td>
                                     <td>
                                         @(participant.Town?.Name ?? "N/A") (@(participant.Hero?.Name ?? "N/A"))
                                     </td>
@@ -529,21 +526,6 @@ else
             GameStatus.InProgress => "In Progress",
             GameStatus.Cancelled => "Cancelled",
             _ => "Unknown"
-        };
-    }
-
-    private string GetOrdinalSuffix(int number)
-    {
-        if (number <= 0) return number.ToString();
-
-        if (number % 100 is >= 11 and <= 13) return "th";
-
-        return (number % 10) switch
-        {
-            1 => "st",
-            2 => "nd",
-            3 => "rd",
-            _ => "th"
         };
     }
 

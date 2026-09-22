@@ -273,6 +273,7 @@ public class GameServiceCreateGameTests
         public Task<bool> IsOwnerAsync(string userId, Guid leagueId) => throw new NotImplementedException();
         public Task<bool> IsMemberAsync(string userId, Guid leagueId) => throw new NotImplementedException();
         public Task<bool> RecalculateStatisticsAsync(Guid leagueId, string userId) => throw new NotImplementedException();
+        public Task<bool> RecalculateRatingsAsync(Guid leagueId, string userId) => throw new NotImplementedException();
         public IChangeToken GetLeagueCacheExpirationToken(Guid leagueId) => throw new NotImplementedException();
     }
 }

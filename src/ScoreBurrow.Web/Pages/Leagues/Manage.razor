@@ -109,6 +109,19 @@
                                 </div>
                             </div>
 
+                            <div class="card mb-3">
+                                <div class="card-header">
+                                    <h5 class="mb-0">Glicko-2 Ratings</h5>
+                                </div>
+                                <div class="card-body">
+                                    <p>Replay all completed games chronologically and rebuild every player's Glicko-2 rating, rating history, and at-game-time snapshots.</p>
+                                    <p class="text-muted"><small>Use this after a rating formula change. Existing rating history for this league will be deleted and rebuilt.</small></p>
+                                    <button class="btn btn-primary" @onclick="@(() => showRecalculateRatingsConfirm = true)" disabled="@isSubmitting">
+                                        <span class="oi oi-loop-circular me-1"></span> Recalculate Ratings
+                                    </button>
+                                </div>
+                            </div>
+
                             @if (isOwner)
                             {
                                 <div class="card mb-3">
@@ -394,6 +407,31 @@
                 </div>
             }
 
+            <!-- Recalculate Ratings Confirmation Modal -->
+            @if (showRecalculateRatingsConfirm)
+            {
+                <div class="modal show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+                    <div class="modal-dialog">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title">Recalculate Glicko-2 Ratings</h5>
+                                <button type="button" class="btn-close" @onclick="@(() => showRecalculateRatingsConfirm = false)"></button>
+                            </div>
+                            <div class="modal-body">
+                                <p>This will reset all player ratings to defaults and replay every completed game in chronological order under the current rating formula.</p>
+                                <p class="text-muted"><small>Rating history for this league will be deleted and rebuilt. This operation may take a few moments on large leagues.</small></p>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" @onclick="@(() => showRecalculateRatingsConfirm = false)">Cancel</button>
+                                <button type="button" class="btn btn-primary" @onclick="@HandleRecalculateRatings" disabled="@isSubmitting">
+                                    <span class="oi oi-loop-circular me-1"></span> Recalculate Ratings
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            }
+
             <!-- Archive Confirmation Modal -->
             @if (showArchiveConfirm)
             {
@@ -480,6 +518,7 @@
     private bool showArchiveConfirm = false;
     private bool showDeleteConfirm = false;
     private bool showRecalculateConfirm = false;
+    private bool showRecalculateRatingsConfirm = false;
     private string addMemberEmail = string.Empty;
     private string addMemberDisplayName = string.Empty;
     private string addUnregisteredPlayerDisplayName = string.Empty;
@@ -942,6 +981,36 @@
             else
             {
                 errorMessage = "Failed to recalculate statistics.";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error: {ex.Message}";
+        }
+        finally
+        {
+            isSubmitting = false;
+        }
+    }
+
+    private async Task HandleRecalculateRatings()
+    {
+        try
+        {
+            isSubmitting = true;
+            errorMessage = null;
+            successMessage = null;
+            showRecalculateRatingsConfirm = false;
+
+            var success = await LeagueService.RecalculateRatingsAsync(LeagueId, userId!);
+
+            if (success)
+            {
+                successMessage = "Glicko-2 ratings recalculated successfully!";
+            }
+            else
+            {
+                errorMessage = "Failed to recalculate ratings.";
             }
         }
         catch (Exception ex)

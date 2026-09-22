@@ -82,6 +82,12 @@ public interface ILeagueService
     Task<bool> RecalculateStatisticsAsync(Guid leagueId, string userId);
 
     /// <summary>
+    /// Replays all completed games chronologically and rebuilds Glicko-2 ratings,
+    /// participant rating snapshots, and rating history. Requires owner or admin role.
+    /// </summary>
+    Task<bool> RecalculateRatingsAsync(Guid leagueId, string userId);
+
+    /// <summary>
     /// Invalidate all cached data for a league (called after create, complete, technical loss, cancel, etc.)
     /// </summary>
     void InvalidateLeagueCache(Guid leagueId, string? userId = null, Guid? gameId = null);

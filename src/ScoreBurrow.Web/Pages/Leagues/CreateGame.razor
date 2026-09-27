@@ -59,8 +59,15 @@ else
             <div class="card-body">
                 <h3>Step 1: Basic Setup</h3>
                 <div class="mb-3">
-                    <label class="form-label">Map Name</label>
-                    <input type="text" class="form-control" @bind="mapName" placeholder="Enter map name" />
+                    <label class="form-label" for="map-name">Map Name</label>
+                    <input id="map-name" list="league-map-names" type="text" class="form-control" @bind="mapName" maxlength="200" placeholder="Enter map name" />
+                    <datalist id="league-map-names">
+                        @foreach (var name in knownMapNames)
+                        {
+                            <option value="@name"></option>
+                        }
+                    </datalist>
+                    <div class="form-text">Suggestions are maps already used in this league. A new name is fine.</div>
                 </div>
                 <div class="mb-3">
                     <label class="form-label">Notes</label>
@@ -446,6 +453,7 @@ else
 
     private int currentStep = 1;
     private string mapName = "";
+    private List<string> knownMapNames = new();
     private string notes = "";
     private int playerCount = 4;
 
@@ -497,6 +505,19 @@ else
         allHeroes = await DbContext.Heroes
             .Include(h => h.Town)
             .ToListAsync();
+
+        var playedMapNames = await DbContext.Games
+            .Where(g => g.LeagueId == LeagueId)
+            .OrderByDescending(g => g.StartTime)
+            .Select(g => g.MapName)
+            .ToListAsync();
+
+        knownMapNames = playedMapNames
+            .Select(name => name.Trim())
+            .Where(name => name.Length > 0)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(name => name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
     }
 
     private void TogglePlayer(Guid memberId)

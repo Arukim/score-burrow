@@ -143,7 +143,7 @@ dotnet test
   - Winner tracking; position is the start seat from color order
   - Complete, technical loss, and cancel for in-progress games
   - Gold recorded per player, with a separate calculator in the wizard
-  - Map name and editable notes
+  - Map name (suggests maps already used in the league) and editable notes
   - Town pool saved on the game
 - ✅ **Glicko-2 Rating System**:
   - Multi-player game adaptation (1 winner vs N-1 losers)

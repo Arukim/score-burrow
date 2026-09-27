@@ -82,9 +82,21 @@ resource appServiceConfig 'Microsoft.Web/sites/config@2022-09-01' = {
   }
 }
 
+module keepAlive 'modules/keepAliveJobs.bicep' = {
+  name: 'keepAliveDeployment'
+  params: {
+    location: location
+    environmentName: '${appName}-aca-${environment}'
+    appUrl: appService.outputs.appServiceUrl
+  }
+}
+
 output appServiceUrl string = appService.outputs.appServiceUrl
 output appServiceName string = appServiceName
 output appServicePrincipalId string = appService.outputs.appServicePrincipalId
 output sqlServerFqdn string = sqlServer.outputs.sqlServerFqdn
 output sqlDatabaseName string = sqlServer.outputs.sqlDatabaseName
 output sqlConnectionString string = sqlServer.outputs.sqlConnectionString
+output keepAliveEnvironmentName string = keepAlive.outputs.environmentName
+output keepAlivePingJobName string = keepAlive.outputs.pingJobName
+output keepAliveWarmSqlJobName string = keepAlive.outputs.warmSqlJobName

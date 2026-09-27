@@ -15,6 +15,7 @@ score-burrow/
 │   └── modules/                      # Bicep modules
 │       ├── appService.bicep          # App Service configuration
 │       ├── appServicePlan.bicep      # App Service Plan configuration
+│       ├── keepAliveJobs.bicep       # Weekend F1 keep-alive jobs
 │       └── sqlServer.bicep           # SQL Server and Database configuration
 ├── src/                              # Source code
 │   ├── ScoreBurrow.sln              # .NET solution file
@@ -167,7 +168,7 @@ dotnet test
   - Player resolution and league membership creation
   - Dry-run mode for validation
 - ✅ **Responsive UI**: Blazor Server with Bootstrap styling
-- ✅ **Weekend keep-alive (F1)**: GitHub Action pings `/health` so the Free App Service stays loaded Saturday–Sunday from 4:50pm Sydney (10 hours). `/health/ready` wakes SQL on the first tick. Not 24/7 — Always On is unavailable on F1.
+- ✅ **Weekend keep-alive (F1)**: Azure Container Apps jobs ping `/health` every 10 minutes so the Free App Service stays loaded Saturday–Sunday from 4:50pm Sydney (10 hours). `/health/ready` wakes SQL once at 4:50pm. Not 24/7 — Always On is unavailable on F1. The jobs use the Container Apps consumption free grant.
 
 ### Statistics Features
 
@@ -281,7 +282,7 @@ See [Infrastructure README](infrastructure/README.md) for detailed deployment do
 - **Database**: SQL Server (Azure SQL for production)
 - **ORM**: Entity Framework Core 8
 - **Authentication**: ASP.NET Core Identity
-- **Infrastructure**: Azure App Service (Linux), Azure SQL Database
+- **Infrastructure**: Azure App Service (Linux), Azure SQL Database, Azure Container Apps jobs (consumption)
 - **IaC**: Azure Bicep
 - **Rating Algorithm**: Glicko-2 (custom implementation)
 
@@ -305,7 +306,7 @@ See [Infrastructure README](infrastructure/README.md) for detailed deployment do
 - [x] Editable game notes
 - [x] Complete, technical loss, and cancel from the manage page
 - [x] Added Bulwark town and 17 heroes (Chieftain and Elder classes)
-- [x] Weekend F1 keep-alive (Sat–Sun 16:50 AEST, 10 hours)
+- [x] Weekend F1 keep-alive (Sat–Sun 16:50 AEST, 10 hours, Container Apps jobs)
 - [x] Zero-sum rating updates and technical loss redistribution
 - [x] Rating recalculation tools
 

@@ -284,6 +284,7 @@ infrastructure/
     ├── appService.bicep           # App Service with Managed Identity
     ├── sqlServer.bicep            # SQL Server with security config
     ├── cosmosDb.bicep             # CosmosDB with security config
+    ├── keepAliveJobs.bicep        # Weekend F1 keep-alive jobs
     └── sqlServerSecurity.bicep    # (Legacy - for existing resources)
 ```
 
@@ -291,15 +292,23 @@ infrastructure/
 
 Always On is **not** available on F1. A 24/7 ping will exhaust the **60 CPU minutes/day** quota (HTTP 403) and, if it hits SQL, the **100,000 vCore-seconds/month** free database offer.
 
-The repo uses a **single weekend schedule** (GitHub Action `.github/workflows/keep-alive.yml`):
+The weekend schedule is two **consumption** Container Apps jobs (`infrastructure/modules/keepAliveJobs.bicep`).
 
-- **When:** Saturday and Sunday every 10 minutes, **16:00–02:50 AEST** (covers 4:50pm–2:50am Sydney; `*/10 6-16 * * 6,0` UTC)
+- **When:** Saturday and Sunday every 10 minutes, **16:00–02:50 AEST** (`*/10 6-16 * * 0,6` UTC)
 - During AEDT that same UTC window is 17:00–03:50 local
-- **App:** `GET /health` (no Blazor circuit, no SQL)
-- **SQL:** `GET /health/ready` once at 16:50 AEST so auto-resume happens before players arrive
-- **Manual:** Actions → Keep alive → Run workflow (optionally warm the database)
+- **App:** `score-burrow-ping` → `GET /health` (no Blazor circuit, no SQL)
+- **SQL:** `score-burrow-warm-sql` → `GET /health/ready` once at 16:50 AEST so auto-resume happens before players arrive
+- **Manual:** `az containerapp job start --name score-burrow-ping --resource-group score-burrow-rg` (use `score-burrow-warm-sql` to resume SQL)
 
-Set repository variable `APP_URL` if the site is not `https://score-burrow-app-dev.azurewebsites.net`.
+The jobs run on the Container Apps **consumption** plan: 0.5 vCPU and 1 GiB, only while a ping is in flight. That stays inside the monthly free grant (180,000 vCPU-seconds and 360,000 GiB-seconds per subscription). The environment has no Log Analytics workspace and no dedicated workload profile. A full `./deploy.sh` includes the module. To deploy only the jobs:
+
+```bash
+az deployment group create \
+  --resource-group score-burrow-rg \
+  --template-file modules/keepAliveJobs.bicep \
+  --parameters location=australiaeast environmentName=score-burrow-aca-dev \
+    appUrl=https://score-burrow-app-dev.azurewebsites.net
+```
 
 Do **not** point an uptime monitor at `/` — that loads Blazor Server and SQL on every tick.
 

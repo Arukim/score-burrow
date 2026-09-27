@@ -85,24 +85,29 @@ public class RatingReplayService
 
             if (technicalLossCulprits.Count > 0)
             {
-                foreach (var culprit in technicalLossCulprits)
-                {
-                    var current = currentRatings[culprit.LeagueMembershipId];
-                    culprit.RatingAtGameTime = current.Rating;
-                    culprit.RatingDeviationAtGameTime = current.RatingDeviation;
-                    culprit.VolatilityAtGameTime = current.Volatility;
-
-                    var update = _ratingService.ApplyTechnicalLossPenalty(current);
-                    ApplyUpdate(currentRatings, memberships, culprit.LeagueMembershipId, update, game, userId, now);
-                }
-
-                // Non-culprit participants keep their current rating as the at-game-time snapshot
-                foreach (var participant in game.Participants.Where(p => !p.IsTechnicalLoss))
+                var snapshots = new Dictionary<Guid, RatingSnapshot>();
+                foreach (var participant in game.Participants)
                 {
                     var current = currentRatings[participant.LeagueMembershipId];
                     participant.RatingAtGameTime = current.Rating;
                     participant.RatingDeviationAtGameTime = current.RatingDeviation;
                     participant.VolatilityAtGameTime = current.Volatility;
+                    snapshots[participant.LeagueMembershipId] = current;
+                }
+
+                // One culprit per imported/completed technical-loss game. If more than one
+                // is flagged, apply them in participant order against the updated snapshots.
+                foreach (var culprit in technicalLossCulprits)
+                {
+                    var technicalLossUpdates = _ratingService.CalculateTechnicalLossRatings(
+                        snapshots,
+                        culprit.LeagueMembershipId);
+
+                    foreach (var (membershipId, update) in technicalLossUpdates)
+                    {
+                        ApplyUpdate(currentRatings, memberships, membershipId, update, game, userId, now);
+                        snapshots[membershipId] = update.NewRating;
+                    }
                 }
 
                 gamesUpdated++;

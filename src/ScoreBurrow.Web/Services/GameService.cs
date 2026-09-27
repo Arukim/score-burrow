@@ -249,45 +249,49 @@ public class GameService : IGameService
             throw new ArgumentException("Culprit must be a participant in the game.");
         }
 
-        // Apply technical loss penalty
-        var culpritRating = new RatingSnapshot(
-            culpritParticipant.RatingAtGameTime,
-            culpritParticipant.RatingDeviationAtGameTime,
-            culpritParticipant.VolatilityAtGameTime
-        );
+        // Technical loss: culprit takes the self-loss penalty; the lost points are
+        // split equally among the other participants so the pool is unchanged.
+        var participantRatings = game.Participants.ToDictionary(
+            p => p.LeagueMembershipId,
+            p => new RatingSnapshot(
+                p.RatingAtGameTime,
+                p.RatingDeviationAtGameTime,
+                p.VolatilityAtGameTime));
 
-        var penaltyUpdate = _ratingService.ApplyTechnicalLossPenalty(culpritRating);
+        var ratingUpdates = _ratingService.CalculateTechnicalLossRatings(participantRatings, culpritMembershipId);
 
-        // Mark participant as technical loss
         culpritParticipant.IsTechnicalLoss = true;
         culpritParticipant.ModifiedBy = userId;
         culpritParticipant.ModifiedOn = DateTime.UtcNow;
 
-        // Update culprit's rating
-        var culpritMembership = culpritParticipant.LeagueMembership;
-        culpritMembership.Glicko2Rating = penaltyUpdate.NewRating.Rating;
-        culpritMembership.Glicko2RatingDeviation = penaltyUpdate.NewRating.RatingDeviation;
-        culpritMembership.Glicko2Volatility = penaltyUpdate.NewRating.Volatility;
-        culpritMembership.LastRatingUpdate = DateTime.UtcNow;
-
-        // Create rating history for culprit
-        var history = new RatingHistory
+        var now = DateTime.UtcNow;
+        foreach (var participant in game.Participants)
         {
-            Id = Guid.NewGuid(),
-            LeagueMembershipId = culpritMembershipId,
-            GameId = gameId,
-            CalculatedAt = DateTime.UtcNow,
-            PreviousRating = penaltyUpdate.PreviousRating.Rating,
-            PreviousRatingDeviation = penaltyUpdate.PreviousRating.RatingDeviation,
-            PreviousVolatility = penaltyUpdate.PreviousRating.Volatility,
-            NewRating = penaltyUpdate.NewRating.Rating,
-            NewRatingDeviation = penaltyUpdate.NewRating.RatingDeviation,
-            NewVolatility = penaltyUpdate.NewRating.Volatility,
-            CreatedBy = userId,
-            CreatedOn = DateTime.UtcNow
-        };
+            var update = ratingUpdates[participant.LeagueMembershipId];
+            var membership = participant.LeagueMembership;
+            membership.Glicko2Rating = update.NewRating.Rating;
+            membership.Glicko2RatingDeviation = update.NewRating.RatingDeviation;
+            membership.Glicko2Volatility = update.NewRating.Volatility;
+            membership.LastRatingUpdate = now;
 
-        _context.RatingHistory.Add(history);
+            _context.RatingHistory.Add(new RatingHistory
+            {
+                Id = Guid.NewGuid(),
+                LeagueMembershipId = participant.LeagueMembershipId,
+                GameId = gameId,
+                CalculatedAt = now,
+                PreviousRating = update.PreviousRating.Rating,
+                PreviousRatingDeviation = update.PreviousRating.RatingDeviation,
+                PreviousVolatility = update.PreviousRating.Volatility,
+                NewRating = update.NewRating.Rating,
+                NewRatingDeviation = update.NewRating.RatingDeviation,
+                NewVolatility = update.NewRating.Volatility,
+                CreatedBy = userId,
+                CreatedOn = now
+            });
+        }
+
+        var culpritMembership = culpritParticipant.LeagueMembership;
 
         // Record the original game as a completed technical loss (not a cancel) so it
         // counts in player statistics the same way imported technical losses do.
@@ -337,7 +341,7 @@ public class GameService : IGameService
                     : oldParticipant.GoldTrade,
                 IsWinner = false,
                 IsTechnicalLoss = false,
-                // Snapshot current ratings (updated for culprit)
+                // Snapshot current ratings (updated for every participant)
                 RatingAtGameTime = membership.Glicko2Rating,
                 RatingDeviationAtGameTime = membership.Glicko2RatingDeviation,
                 VolatilityAtGameTime = membership.Glicko2Volatility,

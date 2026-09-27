@@ -65,24 +65,32 @@ public class RatingCalculator
     }
 
     /// <summary>
-    /// Applies technical loss penalty to the culprit
-    /// Other players' ratings are not affected
+    /// Technical loss: culprit takes the self-loss penalty and that loss is split
+    /// equally among the other participants. Snapshots every participant first.
     /// </summary>
-    public RatingUpdate ApplyTechnicalLossPenalty(GameParticipant culpritParticipant)
+    public Dictionary<Guid, RatingUpdate> CalculateTechnicalLossRatings(
+        List<GameParticipant> participants,
+        Guid culpritId)
     {
-        var currentRating = GetCurrentRating(culpritParticipant.LeagueMembershipId);
-        
-        // Store snapshot in participant
-        culpritParticipant.RatingAtGameTime = currentRating.Rating;
-        culpritParticipant.RatingDeviationAtGameTime = currentRating.RatingDeviation;
-        culpritParticipant.VolatilityAtGameTime = currentRating.Volatility;
+        var participantRatings = new Dictionary<Guid, RatingSnapshot>();
 
-        var update = _ratingService.ApplyTechnicalLossPenalty(currentRating);
+        foreach (var participant in participants)
+        {
+            var currentRating = GetCurrentRating(participant.LeagueMembershipId);
+            participant.RatingAtGameTime = currentRating.Rating;
+            participant.RatingDeviationAtGameTime = currentRating.RatingDeviation;
+            participant.VolatilityAtGameTime = currentRating.Volatility;
+            participantRatings[participant.LeagueMembershipId] = currentRating;
+        }
 
-        // Update current rating
-        _currentRatings[culpritParticipant.LeagueMembershipId] = update.NewRating;
+        var updates = _ratingService.CalculateTechnicalLossRatings(participantRatings, culpritId);
 
-        return update;
+        foreach (var update in updates)
+        {
+            _currentRatings[update.Key] = update.Value.NewRating;
+        }
+
+        return updates;
     }
 
     /// <summary>

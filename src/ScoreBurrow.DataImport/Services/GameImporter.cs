@@ -179,23 +179,28 @@ public class GameImporter
             // Calculate ratings
             if (gameGroup.IsTechnicalLoss)
             {
-                // Technical loss: only penalize the culprit (player with negative result)
+                // Technical loss: culprit is penalized and the lost points are split among the others
                 var culpritCsvParticipant = gameGroup.Participants.FirstOrDefault(p => p.Result < 0);
                 if (culpritCsvParticipant != null)
                 {
                     var culpritParticipant = gameParticipants.First(gp => 
                         _playerResolver.GetMembership(culpritCsvParticipant.Player).Id == gp.LeagueMembershipId);
-                    
-                    var culpritUpdate = _ratingCalculator.ApplyTechnicalLossPenalty(culpritParticipant);
-                    
-                    var ratingHistory = _ratingCalculator.CreateRatingHistory(
-                        culpritParticipant.LeagueMembershipId,
-                        game.Id,
-                        culpritUpdate,
-                        game.StartTime);
-                    
-                    _dbContext.RatingHistory.Add(ratingHistory);
-                    ratingHistoryCount++;
+
+                    var ratingUpdates = _ratingCalculator.CalculateTechnicalLossRatings(
+                        gameParticipants.ToList(),
+                        culpritParticipant.LeagueMembershipId);
+
+                    foreach (var update in ratingUpdates)
+                    {
+                        var ratingHistory = _ratingCalculator.CreateRatingHistory(
+                            update.Key,
+                            game.Id,
+                            update.Value,
+                            game.StartTime);
+
+                        _dbContext.RatingHistory.Add(ratingHistory);
+                        ratingHistoryCount++;
+                    }
                 }
             }
             else if (winnerMembership != null)

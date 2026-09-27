@@ -197,11 +197,9 @@ Score Burrow implements the Glicko-2 rating system adapted for multiplayer games
 - **Default Rating**: 1500
 - **Default Rating Deviation**: 350
 - **Default Volatility**: 0.06
-- **Multi-player Logic**: Winner plays N-1 wins; each loser plays a loss vs the winner and draws vs other losers (equalizes match count; removes the structural rating sink from the old "losers play once" rule)
-- **Technical Loss Penalty**: Players causing technical losses play against themselves and lose
+- **Multi-player Logic**: Winner plays N-1 wins; each loser plays one loss vs the winner. The net Glicko change is redistributed so every game is zero-sum
+- **Technical Loss Penalty**: Culprit plays against themselves and loses; the lost points are split equally among the other participants
 - **Rating Replay**: League admins can rebuild ratings from completed games (Manage → Recalculate Ratings)
-
-Caveat: loser-vs-loser draws can move rating between non-winners; a much weaker loser may gain points on a loss when the other loser is much stronger.
 
 See [ScoreBurrow.Rating README](src/ScoreBurrow.Rating/README.md) for detailed rating system documentation.
 
@@ -308,7 +306,7 @@ See [Infrastructure README](infrastructure/README.md) for detailed deployment do
 - [x] Complete, technical loss, and cancel from the manage page
 - [x] Added Bulwark town and 17 heroes (Chieftain and Elder classes)
 - [x] Weekend F1 keep-alive (Sat–Sun 16:50 AEST, 10 hours)
-- [x] Multi-player Glicko-2 loser draws (removes structural rating sink)
+- [x] Zero-sum rating updates and technical loss redistribution
 - [x] Rating recalculation tools
 
 ### In Progress

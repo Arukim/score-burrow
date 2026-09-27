@@ -109,16 +109,17 @@ Gold is not bid automatically. Each player has a gold field. The calculator on s
 2. Calls `IRatingService.CalculateMultiPlayerGameRatings()`
 3. Winner plays N-1 matches (wins all)
 4. Each loser plays 1 match vs winner (loses)
-5. Updates all LeagueMembership ratings
-6. Creates RatingHistory entries
-7. Updates player statistics (games played, wins, favorite town)
+5. Net rating change is redistributed so the game is zero-sum
+6. Updates all LeagueMembership ratings
+7. Creates RatingHistory entries
+8. Updates player statistics (games played, wins, favorite town)
 
 **On Technical Loss:**
-1. Snapshots culprit's rating
-2. Calls `IRatingService.ApplyTechnicalLossPenalty()`
+1. Snapshots every participant's rating
+2. Calls `IRatingService.CalculateTechnicalLossRatings()`
 3. Culprit "plays against themselves" and loses
-4. Only culprit's rating affected
-5. Creates RatingHistory for culprit
+4. The penalty is split equally among the other participants
+5. Creates RatingHistory for every participant
 6. New game created with -1000 gold penalty for culprit
 
 ### Permission Checking

@@ -19,9 +19,8 @@ public class RatingService : IRatingService
     /// <summary>
     /// Calculates rating updates for a multi-player game where one player wins.
     /// Winner plays N-1 matches (against each loser, all wins).
-    /// Each loser plays N-1 matches: loss vs winner, plus draws vs every other loser.
-    /// This equalizes match count and removes the structural rating sink of the
-    /// previous "losers play once" adaptation.
+    /// Each loser plays 1 match against the winner.
+    /// The net Glicko change is then redistributed so the participants' ratings sum to zero change.
     /// </summary>
     public Dictionary<Guid, RatingUpdate> CalculateMultiPlayerGameRatings(
         Dictionary<Guid, RatingSnapshot> participants,
@@ -49,28 +48,17 @@ public class RatingService : IRatingService
         }
         results[winnerId] = _calculator.CalculateNewRating(winnerRating, winnerMatchups);
 
-        // Each loser plays N-1 matches: loss vs winner + draw vs every other loser
+        // Each loser plays 1 match against the winner (all losses)
         foreach (var loser in losers)
         {
             var loserMatchups = new List<GameMatchup>
             {
                 GameMatchup.Loss(winnerRating)
             };
-
-            foreach (var otherLoser in losers)
-            {
-                if (otherLoser.Key == loser.Key)
-                {
-                    continue;
-                }
-
-                loserMatchups.Add(GameMatchup.Draw(otherLoser.Value));
-            }
-
             results[loser.Key] = _calculator.CalculateNewRating(loser.Value, loserMatchups);
         }
 
-        return results;
+        return ConservePool(results);
     }
 
     /// <summary>
@@ -91,10 +79,86 @@ public class RatingService : IRatingService
     }
 
     /// <summary>
+    /// Technical loss for a whole game: culprit takes the self-loss penalty, and that
+    /// rating loss is split equally among the other participants so the pool is unchanged.
+    /// Recipients' rating deviation and volatility stay the same.
+    /// </summary>
+    public Dictionary<Guid, RatingUpdate> CalculateTechnicalLossRatings(
+        Dictionary<Guid, RatingSnapshot> participants,
+        Guid culpritId)
+    {
+        if (!participants.ContainsKey(culpritId))
+        {
+            throw new ArgumentException("Culprit must be in participants list", nameof(culpritId));
+        }
+
+        if (participants.Count < 2)
+        {
+            throw new ArgumentException("Must have at least 2 participants", nameof(participants));
+        }
+
+        var culpritUpdate = ApplyTechnicalLossPenalty(participants[culpritId]);
+        var share = -culpritUpdate.RatingChange / (participants.Count - 1);
+
+        var results = new Dictionary<Guid, RatingUpdate>
+        {
+            [culpritId] = culpritUpdate
+        };
+
+        foreach (var (id, snapshot) in participants)
+        {
+            if (id == culpritId)
+            {
+                continue;
+            }
+
+            results[id] = AdjustedRating(
+                snapshot,
+                snapshot.Rating + share,
+                snapshot.RatingDeviation,
+                snapshot.Volatility);
+        }
+
+        return results;
+    }
+
+    /// <summary>
     /// Direct calculation using provided matchups
     /// </summary>
     public RatingUpdate CalculateRating(RatingSnapshot currentRating, List<GameMatchup> matchups)
     {
         return _calculator.CalculateNewRating(currentRating, matchups);
+    }
+
+    /// <summary>
+    /// Shifts every participant's new rating by the same amount so the sum of rating
+    /// changes is zero. Rating deviation and volatility are left as Glicko computed them.
+    /// </summary>
+    private static Dictionary<Guid, RatingUpdate> ConservePool(Dictionary<Guid, RatingUpdate> updates)
+    {
+        var net = updates.Values.Sum(u => u.RatingChange);
+        var shift = -net / updates.Count;
+
+        if (Math.Abs(shift) < 1e-9)
+        {
+            return updates;
+        }
+
+        return updates.ToDictionary(
+            pair => pair.Key,
+            pair => AdjustedRating(
+                pair.Value.PreviousRating,
+                pair.Value.NewRating.Rating + shift,
+                pair.Value.NewRating.RatingDeviation,
+                pair.Value.NewRating.Volatility));
+    }
+
+    private static RatingUpdate AdjustedRating(
+        RatingSnapshot previous,
+        double rating,
+        double ratingDeviation,
+        double volatility)
+    {
+        return new RatingUpdate(previous, new RatingSnapshot(rating, ratingDeviation, volatility));
     }
 }

@@ -9,8 +9,9 @@ This project provides a complete Glicko-2 rating calculation system adapted for 
 ## Features
 
 - **Glicko-2 Rating System**: Industry-standard rating algorithm with volatility tracking
-- **Multi-Player Adaptation**: Winner plays N-1 wins; each loser plays a loss vs the winner and draws vs other losers
-- **Technical Loss Penalty**: Players who cause technical losses play against themselves and lose
+- **Multi-Player Adaptation**: Winner plays N-1 wins; each loser plays one loss vs the winner
+- **Pool Conservation**: Each game's net rating change is redistributed so participants sum to zero
+- **Technical Loss Penalty**: Culprit plays against themselves and loses; the lost points are split equally among the other participants
 - **Rating History**: Complete audit trail of all rating changes
 - **Immutable Models**: Thread-safe rating snapshots and updates
 - **Rating Replay**: League admins can rebuild ratings from completed games after formula changes
@@ -44,16 +45,14 @@ ScoreBurrow.Rating/
 
 ### Multi-Player Game Logic
 
-For a normal N-player game with 1 winner, every participant plays exactly N-1 virtual matches:
+For a normal N-player game with 1 winner:
 
 1. **Winner's Perspective**: Plays N-1 matches, wins all of them
-2. **Loser's Perspective**: Plays 1 loss against the winner, plus draws (score 0.5) against every other loser
+2. **Loser's Perspective**: Plays 1 match against the winner, loses it
 
-This equalizes information (match count) across participants and removes the structural rating sink of the previous "losers play once" adaptation. When all players start with the same rating and RD, rating changes sum to approximately zero (ordinary Glicko-2 residual drift remains when RDs differ).
+### Pool Conservation
 
-Caveat: draws between losers transfer rating among non-winners. A much weaker loser can gain rating points on a loss when the other loser is much stronger, because the weak player outperformed the expected draw score against that opponent. The single-winner outcome is still preserved (only the winner records wins).
-
-2-player games are unchanged (identical to plain 1v1 Glicko-2).
+Glicko-2 is not zero-sum when rating deviations differ (a high-RD player moves more than a low-RD opponent). After the match updates, the net change across the game's participants is split equally and subtracted from each new rating. Rating deviation and volatility stay as Glicko computed them. Every completed game therefore leaves the league rating pool unchanged.
 
 ### Technical Loss Handling
 
@@ -63,12 +62,13 @@ When a player causes a technical loss:
 2. Player "plays against themselves" with that rating
 3. Player loses the match
 4. Rating penalty is applied
-5. Other players' ratings are **not affected**
+5. The penalty is distributed equally to the other participants (rating only; their RD and volatility are unchanged)
 
 This creates a natural scaling penalty:
 - Higher-rated players lose more rating points
 - Lower-rated players lose fewer rating points
 - Penalty is consistent with the rating system
+- The league rating pool does not shrink
 
 ## Usage
 
@@ -99,11 +99,16 @@ Console.WriteLine($"Change: {player1Update.RatingChange:+0.00;-0.00}");
 ### Technical Loss Penalty
 
 ```csharp
-var culpritRating = new RatingSnapshot(1700, 180, 0.05);
+var participants = new Dictionary<Guid, RatingSnapshot>
+{
+    { culpritId, new RatingSnapshot(1700, 180, 0.05) },
+    { otherId, new RatingSnapshot(1500, 200, 0.06) }
+};
 
-var update = ratingService.ApplyTechnicalLossPenalty(culpritRating);
+var updates = ratingService.CalculateTechnicalLossRatings(participants, culpritId);
 
-Console.WriteLine($"Technical Loss Penalty: {update.RatingChange:+0.00;-0.00}");
+Console.WriteLine($"Culprit: {updates[culpritId].RatingChange:+0.00;-0.00}");
+Console.WriteLine($"Other: {updates[otherId].RatingChange:+0.00;-0.00}");
 ```
 
 ### Integration with Database

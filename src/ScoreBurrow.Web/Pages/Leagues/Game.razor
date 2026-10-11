@@ -2,6 +2,7 @@
 
 <PageTitle>Game Details</PageTitle>
 
+@using Microsoft.AspNetCore.Components.Authorization
 @using Microsoft.EntityFrameworkCore
 @using Microsoft.Extensions.Caching.Memory
 @using ScoreBurrow.Data
@@ -13,6 +14,7 @@
 @inject IMemoryCache MemoryCache
 @inject NavigationManager NavigationManager
 @inject ILeagueService LeagueService
+@inject AuthenticationStateProvider AuthenticationStateProvider
 
 <h1>Game Details</h1>
 
@@ -65,6 +67,12 @@ else
             </div>
             <div class="col-md-4">
                 <div class="mt-3">
+                    @if (canManage)
+                    {
+                        <a href="/leagues/@LeagueId/game/@GameId/manage" class="btn btn-warning me-2">
+                            <span class="oi oi-wrench" aria-hidden="true"></span> Manage
+                        </a>
+                    }
                     <a href="/leagues/@LeagueId" class="btn btn-outline-secondary">
                         <span class="oi oi-chevron-left" aria-hidden="true"></span> Back to League
                     </a>
@@ -160,9 +168,17 @@ else
 
     private GameView? game;
     private bool isLoading = true;
+    private bool canManage;
 
     protected override async Task OnInitializedAsync()
     {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var userId = authState.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        if (!string.IsNullOrEmpty(userId))
+        {
+            canManage = await LeagueService.IsAdminOrOwnerAsync(userId, LeagueId);
+        }
+
         await LoadDataAsync();
         isLoading = false;
     }

@@ -385,7 +385,7 @@ function toggleTownStats(button, townName) {
                                         }
                                     </td>
                                     <td>
-                                        @if (game.Status == GameStatus.InProgress && canManageLeague)
+                                        @if (canManageLeague)
                                         {
                                             <a href="@($"/leagues/{LeagueId}/game/{game.Id}/manage")" class="btn btn-sm btn-warning me-1">
                                                 <span class="oi oi-wrench" aria-hidden="true"></span> Manage

@@ -192,6 +192,18 @@ else
         </div>
     }
 
+    <div class="card border-danger mb-4">
+        <div class="card-header bg-danger text-white">
+            <h5 class="mb-0">Delete Game</h5>
+        </div>
+        <div class="card-body">
+            <p class="mb-2">Permanently remove this game. This cannot be undone. Ratings will be recalculated from the remaining games.</p>
+            <button class="btn btn-outline-danger" @onclick="ShowDeleteConfirmation" disabled="@isProcessing">
+                Delete Game
+            </button>
+        </div>
+    </div>
+
     @if (showCancelModal)
     {
         <div class="modal show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
@@ -221,6 +233,35 @@ else
         </div>
     }
 
+    @if (showDeleteModal)
+    {
+        <div class="modal show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Confirm Delete</h5>
+                        <button type="button" class="btn-close" @onclick="HideDeleteConfirmation"></button>
+                    </div>
+                    <div class="modal-body">
+                        <p>Delete this game? This cannot be undone. Ratings will be recalculated.</p>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" @onclick="HideDeleteConfirmation" disabled="@isProcessing">
+                            Keep Game
+                        </button>
+                        <button type="button" class="btn btn-danger" @onclick="DeleteGame" disabled="@isProcessing">
+                            @if (isProcessing && processingAction == "delete")
+                            {
+                                <span class="spinner-border spinner-border-sm me-1"></span>
+                            }
+                            Delete Game
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+
     <div class="mt-3">
         <a href="/leagues/@LeagueId/game/@GameId" class="btn btn-outline-secondary me-2">View Game Details</a>
         <a href="/leagues/@LeagueId" class="btn btn-outline-secondary">Back to League</a>
@@ -241,6 +282,7 @@ else
     private string? errorMessage;
     private string? processingAction;
     private bool showCancelModal = false;
+    private bool showDeleteModal = false;
 
     private GameDetailsDto? game;
     private string notesDraft = "";
@@ -445,6 +487,52 @@ else
             isProcessing = false;
             processingAction = null;
             showCancelModal = false;
+        }
+    }
+
+    private void ShowDeleteConfirmation()
+    {
+        showDeleteModal = true;
+    }
+
+    private void HideDeleteConfirmation()
+    {
+        showDeleteModal = false;
+    }
+
+    private async Task DeleteGame()
+    {
+        if (string.IsNullOrEmpty(userId))
+        {
+            errorMessage = "User not authenticated.";
+            return;
+        }
+
+        isProcessing = true;
+        processingAction = "delete";
+        errorMessage = null;
+
+        try
+        {
+            var success = await GameService.DeleteGameAsync(GameId, userId);
+            if (success)
+            {
+                NavigationManager.NavigateTo($"/leagues/{LeagueId}");
+            }
+            else
+            {
+                errorMessage = "Failed to delete game.";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error deleting game: {ex.Message}";
+        }
+        finally
+        {
+            isProcessing = false;
+            processingAction = null;
+            showDeleteModal = false;
         }
     }
 }

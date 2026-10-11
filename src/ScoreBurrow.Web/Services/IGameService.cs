@@ -33,4 +33,10 @@ public interface IGameService
     /// Sets or clears game notes. Requires admin or owner role.
     /// </summary>
     Task<bool> UpdateGameNotesAsync(Guid gameId, string userId, string? notes);
+
+    /// <summary>
+    /// Deletes a game in any status. Removes participants and rating history, replays league ratings,
+    /// and refreshes participant statistics. Requires admin or owner role.
+    /// </summary>
+    Task<bool> DeleteGameAsync(Guid gameId, string userId);
 }

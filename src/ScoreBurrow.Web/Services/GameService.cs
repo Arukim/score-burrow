@@ -15,17 +15,20 @@ public class GameService : IGameService
     private readonly ILeagueService _leagueService;
     private readonly IRatingService _ratingService;
     private readonly PlayerStatisticsProjector _playerStatisticsProjector;
+    private readonly RatingReplayService _ratingReplayService;
 
     public GameService(
         ScoreBurrowDbContext context,
         ILeagueService leagueService,
         IRatingService ratingService,
-        PlayerStatisticsProjector playerStatisticsProjector)
+        PlayerStatisticsProjector playerStatisticsProjector,
+        RatingReplayService ratingReplayService)
     {
         _context = context;
         _leagueService = leagueService;
         _ratingService = ratingService;
         _playerStatisticsProjector = playerStatisticsProjector;
+        _ratingReplayService = ratingReplayService;
     }
 
     public async Task<Guid> CreateGameAsync(Guid leagueId, string userId, CreateGameRequest request)
@@ -507,6 +510,55 @@ public class GameService : IGameService
         await _context.SaveChangesAsync();
 
         _leagueService.InvalidateLeagueCache(game.LeagueId, userId, game.Id);
+        return true;
+    }
+
+    public async Task<bool> DeleteGameAsync(Guid gameId, string userId)
+    {
+        var game = await _context.Games
+            .Include(g => g.Participants)
+            .FirstOrDefaultAsync(g => g.Id == gameId);
+
+        if (game == null)
+        {
+            return false;
+        }
+
+        if (!await _leagueService.IsAdminOrOwnerAsync(userId, game.LeagueId))
+        {
+            throw new UnauthorizedAccessException("User does not have permission to manage games in this league.");
+        }
+
+        var leagueId = game.LeagueId;
+        var membershipIds = game.Participants
+            .Select(p => p.LeagueMembershipId)
+            .Distinct()
+            .ToList();
+
+        var history = await _context.RatingHistory
+            .Where(h => h.GameId == gameId)
+            .ToListAsync();
+
+        _context.RatingHistory.RemoveRange(history);
+        _context.GameParticipants.RemoveRange(game.Participants);
+        _context.Games.Remove(game);
+
+        await using var transaction = await _context.Database.BeginTransactionAsync();
+        try
+        {
+            await _context.SaveChangesAsync();
+            await _ratingReplayService.RecalculateLeagueRatingsAsync(leagueId, userId);
+            await _playerStatisticsProjector.RecalculateMembershipsAsync(leagueId, membershipIds);
+            await _context.SaveChangesAsync();
+            await transaction.CommitAsync();
+        }
+        catch
+        {
+            await transaction.RollbackAsync();
+            throw;
+        }
+
+        _leagueService.InvalidateLeagueCache(leagueId, userId, gameId);
         return true;
     }
 

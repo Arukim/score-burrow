@@ -142,6 +142,7 @@ dotnet test
   - Record games with HoMM3 data (towns, heroes, 8-color player system)
   - Winner tracking; position is the start seat from color order
   - Complete, technical loss, and cancel for in-progress games
+  - League owners and admins can delete a game; ratings are replayed and statistics are refreshed
   - Gold recorded per player, with a separate calculator in the wizard
   - Map name (suggests maps already used in the league) and editable notes
   - Town pool saved on the game

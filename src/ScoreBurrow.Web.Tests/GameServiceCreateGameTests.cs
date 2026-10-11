@@ -1,5 +1,6 @@
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Primitives;
 using ScoreBurrow.Data;
 using ScoreBurrow.Data.Entities;
@@ -177,7 +178,12 @@ public class GameServiceCreateGameTests
     }
 
     private static GameService CreateService(ScoreBurrowDbContext context, StubLeagueService leagues) =>
-        new(context, leagues, new RatingService(), new PlayerStatisticsProjector(context));
+        new(
+            context,
+            leagues,
+            new RatingService(),
+            new PlayerStatisticsProjector(context),
+            new RatingReplayService(context, new RatingService(), NullLogger<RatingReplayService>.Instance));
 
     private static ScoreBurrowDbContext CreateContext()
     {

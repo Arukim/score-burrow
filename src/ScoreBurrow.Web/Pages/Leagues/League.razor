@@ -100,7 +100,7 @@ else
                                     </h6>
                                     <div class="mb-2">
                                         <span class="badge bg-primary">
-                                            Rating: @player.Glicko2Rating.ToString("F0")
+                                            Rating: @player.Glicko2Rating.ToString("F0") ± @player.Glicko2RatingDeviation.ToString("F0")
                                         </span>
                                     </div>
                                     <div class="small text-muted mb-2">
@@ -560,6 +560,7 @@ function toggleTownStats(button, townName) {
                     PlayerNickname = membership.PlayerNickname,
                     PlayerDisplayName = membership.PlayerDisplayName,
                     Glicko2Rating = membership.Glicko2Rating,
+                    Glicko2RatingDeviation = membership.Glicko2RatingDeviation,
                     IsUnregistered = membership.UserId == null,
                     GamesPlayed = gamesPlayed,
                     WinRate = winRate,
@@ -701,6 +702,7 @@ function toggleTownStats(button, townName) {
         public string PlayerNickname { get; set; } = string.Empty;
         public string? PlayerDisplayName { get; set; }
         public double Glicko2Rating { get; set; }
+        public double Glicko2RatingDeviation { get; set; }
         public bool IsUnregistered { get; set; }
         public int GamesPlayed { get; set; }
         public decimal? WinRate { get; set; }

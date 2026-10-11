@@ -135,6 +135,10 @@ var history = new RatingHistory
 };
 ```
 
+## Outcome notes
+
+Completed games can explain the stored point changes in plain language. The note names deviation when a lower-rated player loses more points because their deviation was higher. Higher-rated losses that cost more points are described as the more expected wins. Technical losses state the culprit's penalty and that it is split across the other players. The notes do not recalculate ratings.
+
 ## Dependency Injection
 
 Register the rating service in your DI container:

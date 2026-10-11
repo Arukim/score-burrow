@@ -7,6 +7,7 @@
 @using ScoreBurrow.Data
 @using ScoreBurrow.Data.Entities
 @using ScoreBurrow.Data.Enums
+@using ScoreBurrow.Web.Models
 @using ScoreBurrow.Web.Services
 @inject ScoreBurrowDbContext DbContext
 @inject IMemoryCache MemoryCache
@@ -91,7 +92,7 @@ else
                         <th>Color</th>
                         <th>Gold Trade</th>
                         <th>Technical Loss</th>
-                        @if (game.RatingChanges.Count > 0)
+                        @if (game.RatingResults.Count > 0)
                         {
                             <th>Rating</th>
                         }
@@ -118,19 +119,10 @@ else
                                 @(participant.GoldTrade > 0 ? "+" : "")@participant.GoldTrade
                             </td>
                             <td>@(participant.IsTechnicalLoss ? "Yes" : "No")</td>
-                            @if (game.RatingChanges.Count > 0)
+                            @if (game.RatingResults.Count > 0)
                             {
                                 <td>
-                                    @if (game.RatingChanges.TryGetValue(participant.LeagueMembershipId, out var change))
-                                    {
-                                        <span class="@(change >= 0 ? "text-success" : "text-danger")">
-                                            @(change >= 0 ? "+" : "")@change.ToString("0.0")
-                                        </span>
-                                    }
-                                    else
-                                    {
-                                        <span class="text-muted">—</span>
-                                    }
+                                    <RatingResult Result="@(game.RatingResults.TryGetValue(participant.LeagueMembershipId, out var result) ? result : null)" />
                                 </td>
                             }
                             <td>
@@ -143,6 +135,19 @@ else
                 </tbody>
             </table>
         </div>
+
+        @if (game.OutcomeNotes.Count > 0)
+        {
+            <div class="alert alert-light border">
+                <strong>Why the ratings moved</strong>
+                <ul class="mb-0 mt-2">
+                    @foreach (var note in game.OutcomeNotes)
+                    {
+                        <li>@note</li>
+                    }
+                </ul>
+            </div>
+        }
     }
 }
 
@@ -193,8 +198,25 @@ else
             var ratingRows = await DbContext.RatingHistory
                 .AsNoTracking()
                 .Where(h => h.GameId == GameId)
-                .Select(h => new { h.LeagueMembershipId, h.PreviousRating, h.NewRating, h.CalculatedAt })
+                .Select(h => new
+                {
+                    h.LeagueMembershipId,
+                    h.PreviousRating,
+                    h.PreviousRatingDeviation,
+                    h.NewRating,
+                    h.NewRatingDeviation,
+                    h.CalculatedAt
+                })
                 .ToListAsync();
+
+            var participants = gameData.Participants ?? new List<GameParticipant>();
+            var ratingResults = RatingOutcomeNotes.Results(ratingRows.Select(h => new RatingOutcomeNotes.HistoryRow(
+                h.LeagueMembershipId,
+                h.PreviousRating,
+                h.PreviousRatingDeviation,
+                h.NewRating,
+                h.NewRatingDeviation,
+                h.CalculatedAt)));
 
             game = new GameView
             {
@@ -205,13 +227,17 @@ else
                 Status = gameData.Status,
                 Notes = gameData.Notes,
                 TownPool = poolIds.Where(townNames.ContainsKey).Select(id => townNames[id]).ToList(),
-                RatingChanges = ratingRows
-                    .GroupBy(h => h.LeagueMembershipId)
-                    .ToDictionary(
-                        g => g.Key,
-                        g => g.OrderByDescending(h => h.CalculatedAt).First().NewRating
-                            - g.OrderByDescending(h => h.CalculatedAt).First().PreviousRating),
-                Participants = gameData.Participants ?? new List<GameParticipant>(),
+                RatingResults = ratingResults,
+                OutcomeNotes = RatingOutcomeNotes.Explain(
+                    participants.Select(p => new RatingOutcomeNotes.ParticipantRow(
+                        p.LeagueMembershipId,
+                        !string.IsNullOrWhiteSpace(p.LeagueMembership.PlayerDisplayName)
+                            ? p.LeagueMembership.PlayerDisplayName
+                            : p.LeagueMembership.PlayerNickname,
+                        p.IsWinner,
+                        p.IsTechnicalLoss)),
+                    ratingResults).ToList(),
+                Participants = participants,
                 Winner = gameData.Winner
             };
 
@@ -261,7 +287,8 @@ else
         public GameStatus Status { get; set; }
         public string? Notes { get; set; }
         public List<string> TownPool { get; set; } = new();
-        public Dictionary<Guid, double> RatingChanges { get; set; } = new();
+        public Dictionary<Guid, RatingResultView> RatingResults { get; set; } = new();
+        public List<string> OutcomeNotes { get; set; } = new();
         public ICollection<GameParticipant> Participants { get; set; } = new List<GameParticipant>();
         public LeagueMembership? Winner { get; set; }
     }

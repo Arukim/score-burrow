@@ -11,6 +11,7 @@ public class GameDetailsDto
     public GameStatus Status { get; set; }
     public string? Notes { get; set; }
     public List<string> TownPool { get; set; } = new();
+    public List<string> OutcomeNotes { get; set; } = new();
     public List<ParticipantDto> Participants { get; set; } = new();
 }
 
@@ -27,4 +28,5 @@ public class ParticipantDto
     public bool IsWinner { get; set; }
     public bool IsTechnicalLoss { get; set; }
     public double? RatingChange { get; set; }
+    public RatingResultView? RatingResult { get; set; }
 }

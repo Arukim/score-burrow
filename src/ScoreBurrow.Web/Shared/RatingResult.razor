@@ -1,0 +1,24 @@
+@using ScoreBurrow.Web.Models
+
+@if (Result == null)
+{
+    <span class="text-muted">—</span>
+}
+else
+{
+    <div class="@(Result.Change >= 0 ? "text-success" : "text-danger") fw-semibold">
+        @(Result.Change >= 0 ? "+" : "")@Result.Change.ToString("0.0")
+    </div>
+    <div class="small text-muted">
+        @Format(Result.PreviousRating) ± @Format(Result.PreviousDeviation)
+        →
+        @Format(Result.NewRating) ± @Format(Result.NewDeviation)
+    </div>
+}
+
+@code {
+    [Parameter]
+    public RatingResultView? Result { get; set; }
+
+    private static string Format(double value) => value.ToString("0.0");
+}

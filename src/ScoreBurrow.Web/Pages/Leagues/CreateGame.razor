@@ -94,7 +94,7 @@ else
                                    checked="@selectedMembers.Contains(member.Id)"
                                    @onchange="@(() => TogglePlayer(member.Id))" />
                             <label class="form-check-label">
-                                @(member.PlayerDisplayName ?? member.PlayerNickname) (Rating: @member.Glicko2Rating.ToString("F0"))
+                                @(member.PlayerDisplayName ?? member.PlayerNickname) (Rating: @member.Glicko2Rating.ToString("F0") ± @member.Glicko2RatingDeviation.ToString("F0"))
                             </label>
                         </div>
                     }

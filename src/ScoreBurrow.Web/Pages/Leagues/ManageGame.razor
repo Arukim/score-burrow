@@ -90,12 +90,24 @@ else
                             </td>
                             @if (showRatingChanges)
                             {
-                                <td>@FormatRatingChange(participant.RatingChange)</td>
+                                <td><RatingResult Result="participant.RatingResult" /></td>
                             }
                         </tr>
                     }
                 </tbody>
             </table>
+            @if (game.OutcomeNotes.Count > 0)
+            {
+                <div class="alert alert-light border">
+                    <strong>Why the ratings moved</strong>
+                    <ul class="mb-0 mt-2">
+                        @foreach (var note in game.OutcomeNotes)
+                        {
+                            <li>@note</li>
+                        }
+                    </ul>
+                </div>
+            }
         </div>
     </div>
 
@@ -285,18 +297,6 @@ else
         {
             errorMessage = $"Error loading game: {ex.Message}";
         }
-    }
-
-    private MarkupString FormatRatingChange(double? change)
-    {
-        if (!change.HasValue)
-        {
-            return new MarkupString("<span class=\"text-muted\">—</span>");
-        }
-
-        var css = change.Value >= 0 ? "text-success" : "text-danger";
-        var sign = change.Value >= 0 ? "+" : "";
-        return new MarkupString($"<span class=\"{css}\">{sign}{change.Value:0.0}</span>");
     }
 
     private async Task SaveNotes()

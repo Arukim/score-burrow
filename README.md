@@ -154,10 +154,11 @@ dotnet test
   - Games played, wins, losses
   - Win rate and average position
   - Favorite town and hero analytics
-  - Current rating display
+  - Current rating and deviation
+  - Rating and deviation history
   - **Color distribution**: Colors played, broken down by game size
   - Town and hero performance statistics
-  - Rating history visualization
+  - Rating history and deviation charts
 - ✅ **HoMM3 Reference Data**:
   - 12 towns/factions (Castle, Rampart, Tower, Inferno, Necropolis, Dungeon, Stronghold, Fortress, Conflux, Cove, Factory, Bulwark)
   - 161 heroes with town affiliations
@@ -200,6 +201,7 @@ Score Burrow implements the Glicko-2 rating system adapted for multiplayer games
 - **Default Volatility**: 0.06
 - **Multi-player Logic**: Winner plays N-1 wins; each loser plays one loss vs the winner. The net Glicko change is redistributed so every game is zero-sum
 - **Technical Loss Penalty**: Culprit plays against themselves and loses; the lost points are split equally among the other participants
+- **Shown on the site**: league standings, the new-game player list, and player profiles show rating ± deviation. A completed game shows each player's rating and deviation before and after, plus a short note when deviation explains who lost more points. The player profile charts rating and deviation separately.
 - **Rating Replay**: League admins can rebuild ratings from completed games (Manage → Recalculate Ratings)
 
 See [ScoreBurrow.Rating README](src/ScoreBurrow.Rating/README.md) for detailed rating system documentation.

@@ -1,0 +1,85 @@
+@using System.Globalization
+@using ScoreBurrow.Data.Entities
+
+@if (History == null || History.Count == 0)
+{
+    <em>No rating history available</em>
+}
+else
+{
+    <div class="small text-muted mb-1">Rating</div>
+    <div class="chart-container" style="width: 100%; height: 160px; position: relative;">
+        <div style="position: absolute; left: 0; top: 0; font-size: 11px; color: #6c757d;">
+            @Math.Round(ratingMax).ToString(CultureInfo.InvariantCulture)
+        </div>
+        <div style="position: absolute; left: 0; top: 118px; font-size: 11px; color: #6c757d;">
+            @Math.Round(ratingMin).ToString(CultureInfo.InvariantCulture)
+        </div>
+        <svg width="100%" height="140" viewBox="0 0 600 140" role="img" aria-label="Rating history"
+             style="border: 1px solid #dee2e6; border-radius: 0.375rem; background: white; display: block;">
+            <polyline fill="none" stroke="#007bff" stroke-width="2" points="@ratingPoints" />
+        </svg>
+    </div>
+
+    <div class="small text-muted mb-1 mt-2">Deviation</div>
+    <div class="chart-container" style="width: 100%; height: 100px; position: relative;">
+        <div style="position: absolute; left: 0; top: 0; font-size: 11px; color: #6c757d;">
+            @Math.Round(deviationMax).ToString(CultureInfo.InvariantCulture)
+        </div>
+        <div style="position: absolute; left: 0; top: 78px; font-size: 11px; color: #6c757d;">
+            @Math.Round(deviationMin).ToString(CultureInfo.InvariantCulture)
+        </div>
+        <svg width="100%" height="100" viewBox="0 0 600 100" role="img" aria-label="Rating deviation history"
+             style="border: 1px solid #dee2e6; border-radius: 0.375rem; background: white; display: block;">
+            <polyline fill="none" stroke="#6f42c1" stroke-width="2" points="@deviationPoints" />
+        </svg>
+    </div>
+    @if (History.Count > 1)
+    {
+        <div class="d-flex justify-content-between small text-muted">
+            <span>@History.Min(r => r.CalculatedAt).ToString("MMM yyyy")</span>
+            <span>@History.Max(r => r.CalculatedAt).ToString("MMM yyyy")</span>
+        </div>
+    }
+    <div class="small text-muted mt-1">Wider deviation means the rating is less certain.</div>
+}
+
+@code {
+    [Parameter]
+    public IReadOnlyList<RatingHistory>? History { get; set; }
+
+    private double ratingMin;
+    private double ratingMax;
+    private double deviationMin;
+    private double deviationMax;
+    private string ratingPoints = "";
+    private string deviationPoints = "";
+
+    protected override void OnParametersSet()
+    {
+        if (History == null || History.Count == 0)
+        {
+            return;
+        }
+
+        ratingMin = History.Min(r => r.NewRating);
+        ratingMax = History.Max(r => r.NewRating);
+        deviationMin = History.Min(r => r.NewRatingDeviation);
+        deviationMax = History.Max(r => r.NewRatingDeviation);
+        ratingPoints = Points(History.Select(r => r.NewRating).ToList(), 120, 10);
+        deviationPoints = Points(History.Select(r => r.NewRatingDeviation).ToList(), 80, 10);
+    }
+
+    private static string Points(IReadOnlyList<double> values, double plotHeight, double topPad)
+    {
+        var min = values.Min();
+        var max = values.Max();
+        var range = Math.Max(max - min, 1);
+        return string.Join(" ", values.Select((value, index) =>
+        {
+            var x = index * 600d / Math.Max(values.Count - 1, 1);
+            var y = topPad + plotHeight - ((value - min) * plotHeight / range);
+            return string.Create(CultureInfo.InvariantCulture, $"{x:0.##},{y:0.##}");
+        }));
+    }
+}

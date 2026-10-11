@@ -416,17 +416,26 @@ public class GameService : IGameService
             return null;
         }
 
-        var ratingChanges = await _context.RatingHistory
+        var ratingRows = await _context.RatingHistory
             .AsNoTracking()
             .Where(h => h.GameId == game.Id)
-            .Select(h => new { h.LeagueMembershipId, h.PreviousRating, h.NewRating, h.CalculatedAt })
+            .Select(h => new
+            {
+                h.LeagueMembershipId,
+                h.PreviousRating,
+                h.PreviousRatingDeviation,
+                h.NewRating,
+                h.NewRatingDeviation,
+                h.CalculatedAt
+            })
             .ToListAsync();
-        var ratingChangeByMembership = ratingChanges
-            .GroupBy(h => h.LeagueMembershipId)
-            .ToDictionary(
-                g => g.Key,
-                g => g.OrderByDescending(h => h.CalculatedAt).First().NewRating
-                    - g.OrderByDescending(h => h.CalculatedAt).First().PreviousRating);
+        var ratingResults = RatingOutcomeNotes.Results(ratingRows.Select(h => new RatingOutcomeNotes.HistoryRow(
+            h.LeagueMembershipId,
+            h.PreviousRating,
+            h.PreviousRatingDeviation,
+            h.NewRating,
+            h.NewRatingDeviation,
+            h.CalculatedAt)));
 
         var poolIds = TownPoolIds.Parse(game.TownPoolTownIds);
         var townNames = poolIds.Count == 0
@@ -459,12 +468,22 @@ public class GameService : IGameService
                     GoldTrade = p.GoldTrade,
                     IsWinner = p.IsWinner,
                     IsTechnicalLoss = p.IsTechnicalLoss,
-                    RatingChange = ratingChangeByMembership.TryGetValue(p.LeagueMembershipId, out var change)
-                        ? change
+                    RatingResult = ratingResults.TryGetValue(p.LeagueMembershipId, out var result)
+                        ? result
+                        : null,
+                    RatingChange = ratingResults.TryGetValue(p.LeagueMembershipId, out var rated)
+                        ? rated.Change
                         : null
                 })
                 .ToList()
         };
+        dto.OutcomeNotes = RatingOutcomeNotes.Explain(
+            dto.Participants.Select(p => new RatingOutcomeNotes.ParticipantRow(
+                p.LeagueMembershipId,
+                p.PlayerName,
+                p.IsWinner,
+                p.IsTechnicalLoss)),
+            ratingResults).ToList();
 
         return dto;
     }
